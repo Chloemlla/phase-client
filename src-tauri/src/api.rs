@@ -69,7 +69,7 @@ fn with_instance_token(
     instance_token: Option<&str>,
 ) -> reqwest::RequestBuilder {
     match instance_token {
-        Some(token) => req.header("X-Phase-Instance-Token", token),
+        Some(token) => req.header("X-Instance-Token", token),
         None => req,
     }
 }

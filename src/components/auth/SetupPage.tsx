@@ -517,7 +517,7 @@ export function SetupPage() {
               size="large"
             />
             <Input
-              placeholder="Access token"
+              placeholder="Instance Token (from /api/v1/setup-token)"
               type="password"
               value={instanceToken}
               onChange={(_, d) => setInstanceToken(d.value)}
