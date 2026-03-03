@@ -1,0 +1,221 @@
+import {
+  makeStyles,
+  tokens,
+  TabList,
+  Tab,
+  Button,
+  Input,
+  Body1,
+  Title3,
+  Tooltip,
+} from "@fluentui/react-components";
+import { Add24Regular, Search24Regular } from "@fluentui/react-icons";
+import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import { useAppStore } from "../../store/appStore";
+import { TokenCard } from "./TokenCard";
+import { AddTokenDialog } from "./AddTokenDialog";
+import {
+  cmdTotpStartTicker,
+  cmdTotpStopTicker,
+  onTotpTick,
+  type TotpCode,
+  type UnlistenFn,
+} from "../../lib/tauri";
+
+const useStyles = makeStyles({
+  container: {
+    display: "flex",
+    flexDirection: "column",
+    minHeight: "100%",
+    padding: "24px",
+    gap: "20px",
+    position: "relative" as const,
+  },
+  header: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+    flexShrink: 0,
+  },
+  titleRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  searchRow: {
+    display: "flex",
+    gap: "12px",
+  },
+  searchInput: {
+    flex: 1,
+  },
+  tokenList: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "8px",
+    paddingBottom: "80px",
+    "@media (min-width: 640px)": {
+      gridTemplateColumns: "repeat(2, 1fr)",
+    },
+    "@media (min-width: 1100px)": {
+      gridTemplateColumns: "repeat(3, 1fr)",
+    },
+  },
+  emptyState: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: "48px",
+    color: tokens.colorNeutralForeground3,
+  },
+  fab: {
+    position: "fixed" as const,
+    bottom: "calc(24px + env(safe-area-inset-bottom, 0px))",
+    right: "24px",
+    width: "56px",
+    height: "56px",
+    borderRadius: "16px",
+    minWidth: "unset",
+    boxShadow: tokens.shadow16,
+    "@media (max-width: 639px)": {
+      bottom: "calc(76px + env(safe-area-inset-bottom, 0px))",
+    },
+  },
+});
+
+export function TokenListPage() {
+  const styles = useStyles();
+  const { tokens: tokenList, groups, activeGroup, searchQuery, setActiveGroup, setSearchQuery } =
+    useAppStore();
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [totpMap, setTotpMap] = useState<Map<string, TotpCode>>(new Map());
+  const unlistenRef = useRef<UnlistenFn | null>(null);
+
+  // Start TOTP ticker and listen to events whenever the token list changes
+  useEffect(() => {
+    if (tokenList.length === 0) {
+      cmdTotpStopTicker().catch(() => {});
+      return;
+    }
+
+    const entries = tokenList.map((t) => ({
+      id: t.id,
+      secret: t.secret,
+      algorithm: t.algorithm,
+      digits: t.digits,
+      period: t.period,
+    }));
+
+    // Set up event listener first, then start ticker
+    onTotpTick((codes) => {
+      setTotpMap((prev) => {
+        const next = new Map(prev);
+        codes.forEach((c) => next.set(c.id, c));
+        return next;
+      });
+    }).then((unlisten) => {
+      // Clean up previous listener if any
+      if (unlistenRef.current) {
+        unlistenRef.current();
+      }
+      unlistenRef.current = unlisten;
+    });
+
+    cmdTotpStartTicker(entries).catch(console.error);
+
+    return () => {
+      cmdTotpStopTicker().catch(() => {});
+      if (unlistenRef.current) {
+        unlistenRef.current();
+        unlistenRef.current = null;
+      }
+    };
+  }, [tokenList]);
+
+  const filtered = tokenList.filter((t) => {
+    const matchesGroup = activeGroup === "All" || t.group === activeGroup;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      !q ||
+      t.issuer.toLowerCase().includes(q) ||
+      t.account.toLowerCase().includes(q);
+    return matchesGroup && matchesSearch;
+  });
+
+  return (
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <div className={styles.titleRow}>
+          <Title3>Tokens</Title3>
+        </div>
+        <div className={styles.searchRow}>
+          <Input
+            className={styles.searchInput}
+            placeholder="Search tokens..."
+            value={searchQuery}
+            onChange={(_, data) => setSearchQuery(data.value)}
+            contentBefore={<Search24Regular />}
+          />
+        </div>
+        <TabList
+          selectedValue={activeGroup}
+          onTabSelect={(_, data) => setActiveGroup(data.value as string)}
+        >
+          {groups.map((g) => (
+            <Tab key={g} value={g}>
+              {g}
+            </Tab>
+          ))}
+        </TabList>
+      </div>
+
+      <motion.div
+        className={styles.tokenList}
+        initial="hidden"
+        animate="visible"
+        variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
+      >
+        {filtered.length > 0 ? (
+          filtered.map((token) => (
+            <motion.div
+              key={token.id}
+              variants={{
+                hidden: { opacity: 0, y: 10 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.18 } },
+              }}
+            >
+              <TokenCard token={token} totpData={totpMap.get(token.id)} />
+            </motion.div>
+          ))
+        ) : (
+          <motion.div
+            className={styles.emptyState}
+            variants={{
+              hidden: { opacity: 0 },
+              visible: { opacity: 1, transition: { duration: 0.2 } },
+            }}
+          >
+            <Body1>
+              {searchQuery ? "No tokens match your search" : "No tokens yet"}
+            </Body1>
+          </motion.div>
+        )}
+      </motion.div>
+
+      <Tooltip content="Add token" relationship="label">
+        <Button
+          className={styles.fab}
+          appearance="primary"
+          icon={<Add24Regular />}
+          onClick={() => setAddDialogOpen(true)}
+        />
+      </Tooltip>
+
+      <AddTokenDialog
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+      />
+    </div>
+  );
+}
