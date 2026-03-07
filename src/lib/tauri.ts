@@ -54,6 +54,7 @@ export interface RestoreResult {
   serverUrl: string;
   connectionMode: string;
   instanceToken: string | null;
+  instanceSalt: string | null;
   deviceId: string | null;
   vaultVersion: number;
 }
@@ -188,3 +189,11 @@ export const cmdReencryptVault = (
 
 export const cmdRestoreSession = (): Promise<RestoreResult | null> =>
   invoke<RestoreResult | null>("cmd_restore_session", {});
+
+/// Offline unlock: derives key from cached instanceToken + instanceSalt,
+/// decrypts local vault blob without any network requests.
+export const cmdOfflineUnlock = (
+  instanceToken: string,
+  instanceSalt: string
+): Promise<SessionResult> =>
+  invoke<SessionResult>("cmd_offline_unlock", { instanceToken, instanceSalt });

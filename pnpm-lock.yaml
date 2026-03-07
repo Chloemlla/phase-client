@@ -23,6 +23,9 @@ importers:
       framer-motion:
         specifier: ^12.34.4
         version: 12.34.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      html5-qrcode:
+        specifier: ^2.3.8
+        version: 2.3.8
       react:
         specifier: ^19.1.0
         version: 19.2.4
@@ -1194,6 +1197,9 @@ packages:
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
     engines: {node: '>=6.9.0'}
+
+  html5-qrcode@2.3.8:
+    resolution: {integrity: sha512-jsr4vafJhwoLVEDW3n1KvPnCCXWaQfRng0/EEYk1vNcQGcG/htAdhJX0be8YyqMoSz7+hZvOZSTAepsabiuhiQ==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -3044,6 +3050,8 @@ snapshots:
     optional: true
 
   gensync@1.0.0-beta.2: {}
+
+  html5-qrcode@2.3.8: {}
 
   js-tokens@4.0.0: {}
 

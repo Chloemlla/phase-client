@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -11,8 +11,16 @@ import {
   MessageBarBody,
   Spinner,
   Title2,
-  Body2,
+  Body1,
+  Caption1,
+  makeStyles,
+  tokens,
 } from "@fluentui/react-components";
+import {
+  ShieldKeyhole24Regular,
+  Fingerprint24Regular,
+  SignOut24Regular,
+} from "@fluentui/react-icons";
 import { AppShell } from "./components/layout/AppShell";
 import { SetupPage } from "./components/auth/SetupPage";
 import { TokenListPage } from "./components/tokens/TokenListPage";
@@ -22,17 +30,73 @@ import { cmdClearSession, cmdRestoreSession } from "./lib/tauri";
 import { verifyBiometricUnlock, hasBiometricCredential } from "./lib/biometric";
 import "./App.css";
 
+// ── Styles for BiometricLockGate ──────────────────────────────────────
+const useLockStyles = makeStyles({
+  page: {
+    display: "grid",
+    placeItems: "center",
+    minHeight: "100dvh",
+    padding: "24px",
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+  card: {
+    width: "100%",
+    maxWidth: "420px",
+    padding: "36px 32px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "20px",
+    textAlign: "center" as const,
+  },
+  brandIcon: {
+    width: "64px",
+    height: "64px",
+    borderRadius: "16px",
+    background: `linear-gradient(135deg, ${tokens.colorBrandBackground} 0%, ${tokens.colorBrandBackgroundHover} 100%)`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: tokens.colorNeutralForegroundOnBrand,
+    boxShadow: tokens.shadow8,
+  },
+  textBlock: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+  },
+  subtitle: {
+    color: tokens.colorNeutralForeground3,
+  },
+  unlockBtn: {
+    width: "100%",
+    height: "48px",
+    fontSize: "15px",
+    fontWeight: 600,
+  },
+  signOutBtn: {
+    color: tokens.colorNeutralForeground3,
+  },
+  serverCaption: {
+    color: tokens.colorNeutralForeground4,
+  },
+});
+
 function BiometricLockGate({
   onUnlock,
   onSignOut,
+  serverUrl,
 }: {
   onUnlock: () => Promise<void>;
   onSignOut: () => Promise<void>;
+  serverUrl?: string;
 }) {
+  const styles = useLockStyles();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const attemptedAutoRef = useRef(false);
 
-  const handleUnlock = async () => {
+  const handleUnlock = useCallback(async () => {
     setBusy(true);
     setError("");
     try {
@@ -42,35 +106,79 @@ function BiometricLockGate({
     } finally {
       setBusy(false);
     }
-  };
+  }, [onUnlock]);
+
+  // Auto-trigger biometric prompt on first render
+  useEffect(() => {
+    if (attemptedAutoRef.current) return;
+    attemptedAutoRef.current = true;
+    handleUnlock();
+  }, [handleUnlock]);
 
   return (
-    <div style={{ display: "grid", placeItems: "center", minHeight: "100dvh", padding: 24 }}>
-      <Card style={{ width: "100%", maxWidth: 420, padding: 28, display: "grid", gap: 12 }}>
-        <Title2>验证身份</Title2>
-        <Body2>请使用系统生物识别解锁，确保是本人在查看令牌。</Body2>
+    <div className={styles.page}>
+      <Card className={styles.card}>
+        <div className={styles.brandIcon}>
+          <ShieldKeyhole24Regular fontSize={32} />
+        </div>
+
+        <div className={styles.textBlock}>
+          <Title2>Vault Locked</Title2>
+          <Body1 className={styles.subtitle}>
+            Verify your identity to access your 2FA tokens.
+          </Body1>
+        </div>
+
         {error ? (
-          <MessageBar intent="error">
+          <MessageBar intent="error" style={{ width: "100%" }}>
             <MessageBarBody>{error}</MessageBarBody>
           </MessageBar>
         ) : null}
-        <Button appearance="primary" onClick={handleUnlock} disabled={busy}>
-          {busy ? <Spinner size="tiny" /> : "使用生物识别解锁"}
+
+        <Button
+          className={styles.unlockBtn}
+          appearance="primary"
+          size="large"
+          icon={busy ? undefined : <Fingerprint24Regular />}
+          onClick={handleUnlock}
+          disabled={busy}
+        >
+          {busy ? <Spinner size="tiny" /> : "Unlock with biometrics"}
         </Button>
-        <Button appearance="subtle" onClick={() => void onSignOut()}>
-          改用主密码登录
+
+        <Button
+          className={styles.signOutBtn}
+          appearance="subtle"
+          size="small"
+          icon={<SignOut24Regular />}
+          onClick={() => void onSignOut()}
+        >
+          Sign out
         </Button>
+
+        {serverUrl && (
+          <Caption1 className={styles.serverCaption}>
+            {serverUrl}
+          </Caption1>
+        )}
       </Card>
     </div>
   );
 }
 
 function AppRoutes() {
-  const { isAuthenticated, biometricLockEnabled, clearSession, sessionHandle } = useAppStore();
+  const {
+    isAuthenticated,
+    biometricLockEnabled,
+    clearSession,
+    sessionHandle,
+    serverUrl,
+  } = useAppStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [privacyLocked, setPrivacyLocked] = useState(false);
 
+  // Set privacy lock when authenticated + biometric enabled
   useEffect(() => {
     if (!isAuthenticated || !biometricLockEnabled || !hasBiometricCredential()) {
       setPrivacyLocked(false);
@@ -79,6 +187,7 @@ function AppRoutes() {
     setPrivacyLocked(true);
   }, [isAuthenticated, biometricLockEnabled]);
 
+  // Re-lock when app returns to foreground
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState === "visible" && isAuthenticated && biometricLockEnabled) {
@@ -118,6 +227,7 @@ function AppRoutes() {
       >
         {privacyLocked ? (
           <BiometricLockGate
+            serverUrl={serverUrl}
             onUnlock={async () => {
               await verifyBiometricUnlock();
               setPrivacyLocked(false);

@@ -24,6 +24,8 @@ pub struct SessionData {
     pub connection_mode: String,
     pub instance_token: Option<String>,
     #[serde(default)]
+    pub instance_salt: Option<String>,
+    #[serde(default)]
     pub device_id: Option<String>,
     pub vault_version: i64,
 }

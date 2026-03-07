@@ -139,6 +139,7 @@ pub async fn cmd_sh_setup(
             server_url: server_url.clone(),
             connection_mode: "selfhosted".to_string(),
             instance_token: Some(instance_token),
+            instance_salt: Some(instance_salt),
             device_id: auth_resp.device_id.clone(),
             vault_version: 1,
         },
@@ -199,6 +200,7 @@ pub async fn cmd_sh_open(
             server_url: server_url.clone(),
             connection_mode: "selfhosted".to_string(),
             instance_token: Some(instance_token.clone()),
+            instance_salt: Some(instance_salt),
             device_id: auth_resp.device_id.clone(),
             vault_version: vault_resp.version,
         },
@@ -418,6 +420,7 @@ pub struct RestoreResult {
     pub server_url: String,
     pub connection_mode: String,
     pub instance_token: Option<String>,
+    pub instance_salt: Option<String>,
     pub device_id: Option<String>,
     pub vault_version: i64,
 }
@@ -441,9 +444,38 @@ pub async fn cmd_restore_session(app: AppHandle) -> Result<Option<RestoreResult>
         server_url: session.server_url,
         connection_mode: session.connection_mode,
         instance_token: session.instance_token,
+        instance_salt: session.instance_salt,
         device_id: session.device_id,
         vault_version: session.vault_version,
     }))
+}
+
+// ── Offline unlock (no network required) ──────────────────────────────────
+
+/// Derives encryption key from cached instanceToken + instanceSalt,
+/// decrypts the local vault blob, and returns a session.
+/// No network requests are made — this enables offline vault access.
+#[tauri::command]
+pub async fn cmd_offline_unlock(
+    app: AppHandle,
+    instance_token: String,
+    instance_salt: String,
+) -> Result<SessionResult, String> {
+    let (enc_key, _auth_hash) = crypto::derive_keys(&instance_token, &instance_salt)?;
+
+    let local = vault::load_local(&app)?
+        .ok_or_else(|| "No local vault found".to_string())?;
+
+    let vault_json = crypto::decrypt_vault(&local.encrypted_b64, &enc_key)?;
+    let handle = store_session(enc_key);
+
+    Ok(SessionResult {
+        handle,
+        jwt: String::new(), // No JWT in offline mode
+        device_id: None,
+        vault_json,
+        vault_version: local.version,
+    })
 }
 
 // ── Decrypt local vault blob ───────────────────────────────────────────────

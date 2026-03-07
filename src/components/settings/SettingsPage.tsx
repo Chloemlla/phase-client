@@ -22,7 +22,6 @@ import {
   Laptop24Regular,
   Info24Regular,
   SignOut24Regular,
-  LockClosed24Regular,
   Fingerprint24Regular,
   Timer24Regular,
   ArrowUpload24Regular,
@@ -240,21 +239,6 @@ export function SettingsPage() {
                 </Caption1>
               </div>
             </div>
-          </div>
-          <Divider />
-          <div className={styles.row}>
-            <div className={styles.rowLeft}>
-              <LockClosed24Regular className={styles.rowIcon} />
-              <div className={styles.rowText}>
-                <Body1 className={styles.rowLabel}>Change master password</Body1>
-                <Caption1 className={styles.rowDesc}>
-                  Update your vault encryption password
-                </Caption1>
-              </div>
-            </div>
-            <Button appearance="subtle" size="small">
-              Change
-            </Button>
           </div>
           <Divider />
           <div className={styles.row}>

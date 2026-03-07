@@ -6,7 +6,6 @@ import {
   Button,
   Title1,
   Title2,
-  Body1,
   Body2,
   Caption1,
   makeStyles,
@@ -32,19 +31,18 @@ import {
   cmdHealth,
   cmdShSetup,
   cmdShOpen,
+  cmdOfflineUnlock,
   type RestoreResult,
 } from "../../lib/tauri";
 import type { Token } from "../../types";
 import { normalizeServerUrl } from "../../lib/url";
+import { QrScanner, type QrScanResult } from "./QrScanner";
 
 type SetupView =
   | "home"
   | "cloud-login"
   | "cloud-register"
-  | "selfhosted-url"     // Step 1: URL + Instance Token
-  | "selfhosted-init"    // Step 2a: first-time, set master password
-  | "selfhosted-login"   // Step 2b: existing vault, enter master password
-  | "cached-unlock"      // Session restore: enter password to decrypt local vault
+  | "selfhosted-url"
   | "qr";
 
 const useStyles = makeStyles({
@@ -181,9 +179,6 @@ export function SetupPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Session restore data passed via navigation state from App.tsx
-  const [cachedSession, setCachedSession] = useState<RestoreResult | null>(null);
-
   // Cloud fields
   const [cloudEmail, setCloudEmail] = useState("");
   const [cloudPassword, setCloudPassword] = useState("");
@@ -194,24 +189,19 @@ export function SetupPage() {
   // Self-hosted fields
   const [shUrl, setShUrl] = useState(serverUrl === "https://cloud.phase.app" ? "" : serverUrl);
   const [instanceToken, setInstanceToken] = useState(storedInstanceToken ?? "");
-  const [instanceSalt, setInstanceSalt] = useState("");
-  const [masterPassword, setMasterPassword] = useState("");
-  const [masterConfirm, setMasterConfirm] = useState("");
 
   const goHome = () => {
     setView("home");
     setError("");
     setBusy(false);
-    setCachedSession(null);
   };
 
-  // Check if we arrived with a cached session for quick unlock
+  // ── Session restore: auto-connect on startup if cached session exists ──
   useEffect(() => {
     const state = location.state as { restoreData?: RestoreResult } | null;
     if (!state?.restoreData) return;
     const restoreData = state.restoreData;
 
-    setCachedSession(restoreData);
     setShUrl(normalizeServerUrl(restoreData.serverUrl));
     setInstanceToken(restoreData.instanceToken ?? "");
 
@@ -219,6 +209,7 @@ export function SetupPage() {
     setError("");
     (async () => {
       try {
+        // Try online first: health check → create session → fetch vault
         const normalizedUrl = normalizeServerUrl(restoreData.serverUrl);
         const health = await cmdHealth(normalizedUrl, restoreData.instanceToken ?? undefined);
         const result = await cmdShOpen(
@@ -229,7 +220,11 @@ export function SetupPage() {
           restoreData.deviceId ?? storedDeviceId ?? undefined
         );
         setServerUrl(normalizedUrl);
-        setConnectionMode(restoreData.connectionMode === "self-hosted" || restoreData.connectionMode === "selfhosted" ? "selfhosted" : "cloud");
+        setConnectionMode(
+          restoreData.connectionMode === "self-hosted" || restoreData.connectionMode === "selfhosted"
+            ? "selfhosted"
+            : "cloud"
+        );
         setSession(
           result.handle,
           result.jwt,
@@ -239,8 +234,38 @@ export function SetupPage() {
         );
         setVaultData(parseVaultTokens(result.vaultJson), result.vaultVersion);
         navigate("/");
-      } catch (e) {
-        setError(String(e));
+      } catch {
+        // Online failed — try offline unlock using cached instanceSalt
+        if (restoreData.instanceToken && restoreData.instanceSalt) {
+          try {
+            const result = await cmdOfflineUnlock(
+              restoreData.instanceToken,
+              restoreData.instanceSalt
+            );
+            const normalizedUrl = normalizeServerUrl(restoreData.serverUrl);
+            setServerUrl(normalizedUrl);
+            setConnectionMode(
+              restoreData.connectionMode === "self-hosted" || restoreData.connectionMode === "selfhosted"
+                ? "selfhosted"
+                : "cloud"
+            );
+            setSession(
+              result.handle,
+              result.jwt, // empty string in offline mode
+              restoreData.instanceToken,
+              restoreData.deviceId ?? storedDeviceId,
+              result.vaultVersion
+            );
+            setVaultData(parseVaultTokens(result.vaultJson), result.vaultVersion);
+            navigate("/");
+            return;
+          } catch (offlineErr) {
+            setError(`Server unreachable and offline unlock failed: ${offlineErr}`);
+            setView("selfhosted-url");
+            return;
+          }
+        }
+        setError("Server unreachable. Please check your connection.");
         setView("selfhosted-url");
       } finally {
         setBusy(false);
@@ -257,25 +282,24 @@ export function SetupPage() {
     }
   }
 
-  // ── Cloud login ────────────────────────────────────────────
+  // ── Cloud login (stub) ────────────────────────────────────────
   const handleCloudLogin = async () => {
     setError("Phase Cloud is not available in this build.");
   };
 
-  // ── Cloud register ─────────────────────────────────────────
+  // ── Cloud register (stub) ─────────────────────────────────────
   const handleCloudRegister = async () => {
     setError("Phase Cloud is not available in this build.");
   };
 
-  // ── Self-hosted: verify URL + Instance Token ───────────────
-  const handleCheckServer = async () => {
+  // ── Self-hosted: verify URL + Instance Token, then auto-connect ──
+  const handleConnect = async () => {
     const normalizedUrl = normalizeServerUrl(shUrl);
     if (!normalizedUrl || !instanceToken.trim()) return;
     setBusy(true);
     setError("");
     try {
       const health = await cmdHealth(normalizedUrl, instanceToken);
-      setInstanceSalt(health.instanceSalt);
 
       const result = health.initialized
         ? await cmdShOpen(normalizedUrl, instanceToken, health.instanceSalt, "", storedDeviceId ?? undefined)
@@ -284,79 +308,6 @@ export function SetupPage() {
       setServerUrl(normalizedUrl);
       setConnectionMode("selfhosted");
       setSession(result.handle, result.jwt, instanceToken, result.deviceId ?? storedDeviceId, result.vaultVersion);
-      setVaultData(parseVaultTokens(result.vaultJson), result.vaultVersion);
-      navigate("/");
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // ── Self-hosted: initialise vault (first time) ─────────────
-  const handleSelfHostedInit = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const normalizedUrl = normalizeServerUrl(shUrl);
-      const result = await cmdShSetup(normalizedUrl, instanceToken, instanceSalt, "");
-      setServerUrl(normalizeServerUrl(shUrl));
-      setConnectionMode("selfhosted");
-      setSession(result.handle, result.jwt, instanceToken, result.deviceId ?? storedDeviceId, result.vaultVersion);
-      setVaultData([], result.vaultVersion);
-      navigate("/");
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // ── Self-hosted: login to existing vault ───────────────────
-  const handleSelfHostedLogin = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const normalizedUrl = normalizeServerUrl(shUrl);
-      const result = await cmdShOpen(normalizedUrl, instanceToken, instanceSalt, "", storedDeviceId ?? undefined);
-      setServerUrl(normalizeServerUrl(shUrl));
-      setConnectionMode("selfhosted");
-      setSession(result.handle, result.jwt, instanceToken, result.deviceId ?? storedDeviceId, result.vaultVersion);
-      setVaultData(parseVaultTokens(result.vaultJson), result.vaultVersion);
-      navigate("/");
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // ── Cached unlock: re-derive keys, decrypt local vault ────
-  const handleCachedUnlock = async () => {
-    if (!cachedSession) return;
-    setBusy(true);
-    setError("");
-    try {
-      // Always need to: fetch instanceSalt → re-derive keys → create new session
-      // (crypto keys are zeroized on process exit, so cmdShOpen is always required)
-      const normalizedUrl = normalizeServerUrl(cachedSession.serverUrl);
-      const health = await cmdHealth(normalizedUrl, cachedSession.instanceToken ?? undefined);
-      const result = await cmdShOpen(
-        normalizedUrl,
-        cachedSession.instanceToken ?? "",
-        health.instanceSalt,
-        "",
-        cachedSession.deviceId ?? storedDeviceId ?? undefined
-      );
-      setServerUrl(normalizedUrl);
-      setConnectionMode(cachedSession.connectionMode === "self-hosted" || cachedSession.connectionMode === "selfhosted" ? "selfhosted" : "cloud");
-      setSession(
-        result.handle,
-        result.jwt,
-        cachedSession.instanceToken,
-        result.deviceId ?? cachedSession.deviceId ?? storedDeviceId,
-        result.vaultVersion
-      );
       setVaultData(parseVaultTokens(result.vaultJson), result.vaultVersion);
       navigate("/");
     } catch (e) {
@@ -560,7 +511,7 @@ export function SetupPage() {
     );
   }
 
-  // ── Self-hosted: Step 1 — URL + Instance Token ─────────────
+  // ── Self-hosted: URL + Instance Token → auto-connect ──────
   if (view === "selfhosted-url") {
     const canSubmit = Boolean(normalizeServerUrl(shUrl) && instanceToken.trim());
     return (
@@ -587,195 +538,18 @@ export function SetupPage() {
             />
             {busy ? (
               <div className={styles.loadingRow}>
-                <Spinner size="small" label="Checking server..." />
+                <Spinner size="small" label="Connecting..." />
               </div>
             ) : (
               <Button
                 appearance="primary"
                 size="large"
-                onClick={handleCheckServer}
+                onClick={handleConnect}
                 disabled={!canSubmit}
               >
-                Continue
+                Connect
               </Button>
             )}
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  // ── Self-hosted: Step 2a — first-time vault setup ──────────
-  if (view === "selfhosted-init") {
-    const canSubmit =
-      masterPassword.length >= 8 && masterPassword === masterConfirm;
-    return (
-      <div className={styles.page}>
-        <Card className={styles.card}>
-          <Button
-            className={styles.backButton}
-            appearance="subtle"
-            icon={<ChevronLeft24Regular />}
-            onClick={() => setView("selfhosted-url")}
-          >
-            Back
-          </Button>
-          <Title2 className={styles.viewTitle}>Set up your vault</Title2>
-          <Body1
-            style={{
-              color: tokens.colorNeutralForeground3,
-              marginBottom: "20px",
-            }}
-          >
-            This server has no vault yet. Choose a master password to encrypt
-            your data — it never leaves your device.
-          </Body1>
-          <div className={styles.form}>
-            <ErrorBar />
-            <Input
-              placeholder="Master password (min 8 chars)"
-              type="password"
-              value={masterPassword}
-              onChange={(_, d) => setMasterPassword(d.value)}
-              contentBefore={<LockClosed24Regular />}
-              size="large"
-            />
-            <Input
-              placeholder="Confirm master password"
-              type="password"
-              value={masterConfirm}
-              onChange={(_, d) => setMasterConfirm(d.value)}
-              contentBefore={<LockClosed24Regular />}
-              size="large"
-            />
-            {busy ? (
-              <div className={styles.loadingRow}>
-                <Spinner size="small" label="Setting up vault..." />
-              </div>
-            ) : (
-              <Button
-                appearance="primary"
-                size="large"
-                onClick={handleSelfHostedInit}
-                disabled={!canSubmit}
-              >
-                Create vault
-              </Button>
-            )}
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  // ── Self-hosted: Step 2b — login to existing vault ─────────
-  if (view === "selfhosted-login") {
-    const canSubmit = true;
-    return (
-      <div className={styles.page}>
-        <Card className={styles.card}>
-          <Button
-            className={styles.backButton}
-            appearance="subtle"
-            icon={<ChevronLeft24Regular />}
-            onClick={() => setView("selfhosted-url")}
-          >
-            Back
-          </Button>
-          <Title2 className={styles.viewTitle}>Unlock vault</Title2>
-          <Body1
-            style={{
-              color: tokens.colorNeutralForeground3,
-              marginBottom: "20px",
-            }}
-          >
-            {shUrl}
-          </Body1>
-          <div className={styles.form}>
-            <ErrorBar />
-            <Input
-              placeholder="Master password"
-              type="password"
-              value={masterPassword}
-              onChange={(_, d) => setMasterPassword(d.value)}
-              contentBefore={<LockClosed24Regular />}
-              size="large"
-            />
-            {busy ? (
-              <div className={styles.loadingRow}>
-                <Spinner size="small" label="Unlocking..." />
-              </div>
-            ) : (
-              <Button
-                appearance="primary"
-                size="large"
-                onClick={handleSelfHostedLogin}
-                disabled={!canSubmit}
-              >
-                Unlock
-              </Button>
-            )}
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  // ── Cached unlock: quick password entry ─────────────────────
-  if (view === "cached-unlock" && cachedSession) {
-    const canSubmit = true;
-    return (
-      <div className={styles.page}>
-        <Card className={styles.card}>
-          <Button
-            className={styles.backButton}
-            appearance="subtle"
-            icon={<ChevronLeft24Regular />}
-            onClick={goHome}
-          >
-            Back
-          </Button>
-          <Title2 className={styles.viewTitle}>Welcome back</Title2>
-          <Body1
-            style={{
-              color: tokens.colorNeutralForeground3,
-              marginBottom: "20px",
-            }}
-          >
-            {cachedSession.serverUrl}
-          </Body1>
-          <div className={styles.form}>
-            <ErrorBar />
-            <Input
-              placeholder="Master password"
-              type="password"
-              value={masterPassword}
-              onChange={(_, d) => setMasterPassword(d.value)}
-              contentBefore={<LockClosed24Regular />}
-              size="large"
-            />
-            {busy ? (
-              <div className={styles.loadingRow}>
-                <Spinner size="small" label="Unlocking..." />
-              </div>
-            ) : (
-              <Button
-                appearance="primary"
-                size="large"
-                onClick={handleCachedUnlock}
-                disabled={!canSubmit}
-              >
-                Unlock
-              </Button>
-            )}
-            <Body2 className={styles.formFooter}>
-              <button
-                className={styles.switchLink}
-                onClick={goHome}
-              >
-                Use a different server
-              </button>
-            </Body2>
           </div>
         </Card>
       </div>
@@ -784,28 +558,51 @@ export function SetupPage() {
 
   // ── QR scan ────────────────────────────────────────────────
   if (view === "qr") {
+    const handleQrScan = async (result: QrScanResult) => {
+      // Auto-fill and connect
+      setShUrl(result.url);
+      setInstanceToken(result.token);
+
+      const normalizedUrl = normalizeServerUrl(result.url);
+      if (!normalizedUrl || !result.token.trim()) return;
+
+      setBusy(true);
+      setError("");
+      try {
+        const health = await cmdHealth(normalizedUrl, result.token);
+        const sessionResult = health.initialized
+          ? await cmdShOpen(normalizedUrl, result.token, health.instanceSalt, "", storedDeviceId ?? undefined)
+          : await cmdShSetup(normalizedUrl, result.token, health.instanceSalt, "");
+
+        setServerUrl(normalizedUrl);
+        setConnectionMode("selfhosted");
+        setSession(sessionResult.handle, sessionResult.jwt, result.token, sessionResult.deviceId ?? storedDeviceId, sessionResult.vaultVersion);
+        setVaultData(parseVaultTokens(sessionResult.vaultJson), sessionResult.vaultVersion);
+        navigate("/");
+      } catch (e) {
+        setError(String(e));
+        setView("selfhosted-url");
+      } finally {
+        setBusy(false);
+      }
+    };
+
     return (
       <div className={styles.page}>
         <Card className={styles.card}>
           <BackButton />
           <Title2 className={styles.viewTitle}>Scan QR code</Title2>
-          <Body1
-            style={{ color: tokens.colorNeutralForeground3, marginBottom: "16px" }}
-          >
-            Scan the QR code shown in your Phase server dashboard or deployment
-            page to connect automatically.
-          </Body1>
-          <div className={styles.qrPlaceholder}>
-            <div className={styles.qrFrame}>
-              <QrCode24Regular fontSize={48} style={{ opacity: 0.3 }} />
+          <ErrorBar />
+          {busy ? (
+            <div className={styles.loadingRow}>
+              <Spinner size="small" label="Connecting..." />
             </div>
-            <Body2 style={{ color: tokens.colorNeutralForeground3 }}>
-              Camera permission required
-            </Body2>
-            <Button appearance="primary" disabled>
-              Open Camera
-            </Button>
-          </div>
+          ) : (
+            <QrScanner
+              onScan={handleQrScan}
+              onError={(msg) => setError(msg)}
+            />
+          )}
         </Card>
       </div>
     );
