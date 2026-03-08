@@ -4,6 +4,7 @@ mod crypto;
 mod totp;
 mod vault;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use tauri::Manager;
 
 #[cfg(target_os = "windows")]
@@ -18,25 +19,43 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .setup(|app| {
-            // Apply Vibrancy to Spotlight window (desktop only)
+        .setup(|_app| {
+            // Desktop-only: spotlight window, vibrancy, tray icon
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            if let Some(window) = app.get_webview_window("spotlight") {
+            {
+                let app = _app;
+
+                // Create the spotlight window programmatically (desktop only)
+                use tauri::WebviewWindowBuilder;
+                let spotlight = WebviewWindowBuilder::new(
+                    app,
+                    "spotlight",
+                    tauri::WebviewUrl::App("index.html".into()),
+                )
+                .title("Quick Search")
+                .inner_size(640.0, 400.0)
+                .decorations(false)
+                .transparent(true)
+                .visible(false)
+                .always_on_top(true)
+                .center()
+                .skip_taskbar(true)
+                .build()?;
+
+                // Apply Vibrancy to Spotlight window
                 #[cfg(target_os = "windows")]
                 {
-                    if apply_mica(&window, None).is_err() {
-                        let _ = apply_acrylic(&window, Some((18, 18, 18, 125)));
+                    if apply_mica(&spotlight, None).is_err() {
+                        let _ = apply_acrylic(&spotlight, Some((18, 18, 18, 125)));
                     }
                 }
 
                 #[cfg(target_os = "macos")]
                 {
-                    let _ = apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None);
+                    let _ = apply_vibrancy(&spotlight, NSVisualEffectMaterial::HudWindow, None, None);
                 }
-            }
 
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            {
+                // System tray
                 use tauri::{
                     menu::{Menu, MenuItem},
                     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -49,6 +68,7 @@ pub fn run() {
 
                 TrayIconBuilder::new()
                     .icon(app.default_window_icon().unwrap().clone())
+                    .tooltip("Phase")
                     .menu(&menu)
                     .on_menu_event(|app, event| match event.id.as_ref() {
                         "quit" => app.exit(0),

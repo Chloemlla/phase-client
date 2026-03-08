@@ -137,12 +137,14 @@ jobs:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
         run: |
           echo "$ANDROID_KEYSTORE" | base64 -d > /tmp/release.keystore
-          cat >> src-tauri/gen/android/app/build.gradle.kts << 'EOF'
+
+          # Append signing config to the generated build.gradle.kts
+          cat >> src-tauri/gen/android/app/build.gradle.kts << 'SIGNING'
 
           android {
               signingConfigs {
                   create("release") {
-                      storeFile = file(System.getenv("KEYSTORE_FILE") ?: "")
+                      storeFile = file(System.getenv("KEYSTORE_FILE") ?: "/tmp/release.keystore")
                       storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
                       keyAlias = System.getenv("KEY_ALIAS") ?: ""
                       keyPassword = System.getenv("KEY_PASSWORD") ?: ""
@@ -154,7 +156,7 @@ jobs:
                   }
               }
           }
-          EOF
+          SIGNING
 
       - name: Build Android APK (release, arm64)
         env:

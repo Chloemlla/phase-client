@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     FluentProvider,
     webDarkTheme,
@@ -155,7 +156,12 @@ export function SpotlightSearch() {
 
     // Handle keyboard
     const handleKeyDown = async (e: React.KeyboardEvent) => {
-        if (e.key === "ArrowDown") {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            getCurrentWindow().hide();
+            return;
+        } else if (e.key === "ArrowDown") {
             e.preventDefault();
             setSelectedIndex((prev) => Math.min(prev + 1, filteredTokens.length - 1));
         } else if (e.key === "ArrowUp") {
@@ -216,14 +222,19 @@ export function SpotlightSearch() {
                             <Text>No accounts found.</Text>
                         </div>
                     ) : (
-                        filteredTokens.map((t, idx) => {
-                            const codeData = codes[t.id];
-                            const isSelected = idx === selectedIndex;
-                            return (
-                                <div
-                                    key={t.id}
-                                    className={`${styles.item} ${isSelected ? styles.itemSelected : ""}`}
-                                >
+                        <AnimatePresence>
+                            {filteredTokens.map((t, idx) => {
+                                const codeData = codes[t.id];
+                                const isSelected = idx === selectedIndex;
+                                return (
+                                    <motion.div
+                                        key={t.id}
+                                        initial={{ opacity: 0, y: 6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.12, delay: idx * 0.03 }}
+                                        className={`${styles.item} ${isSelected ? styles.itemSelected : ""}`}
+                                    >
                                     <div className={styles.itemLeft}>
                                         <Text weight="semibold" size={400}>
                                             {t.issuer}
@@ -250,9 +261,10 @@ export function SpotlightSearch() {
                                         )}
                                         {isSelected && <DocumentCopy24Regular style={{ color: tokens.colorNeutralForeground3 }} />}
                                     </div>
-                                </div>
-                            );
-                        })
+                                    </motion.div>
+                                );
+                            })}
+                        </AnimatePresence>
                     )}
                 </div>
             </div>

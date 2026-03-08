@@ -69,6 +69,7 @@ const useStyles = makeStyles({
     justifyContent: "center",
     paddingTop: "48px",
     color: tokens.colorNeutralForeground3,
+    gridColumn: "1 / -1",
   },
 });
 

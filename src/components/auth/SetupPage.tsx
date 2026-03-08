@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Card,
   Input,
@@ -175,7 +176,10 @@ export function SetupPage() {
   } = useAppStore();
   const location = useLocation();
 
-  const [view, setView] = useState<SetupView>("home");
+  // If user previously connected to a selfhosted server, jump straight to the URL form
+  const [view, setView] = useState<SetupView>(
+    serverUrl !== "https://cloud.phase.app" && storedInstanceToken ? "selfhosted-url" : "home"
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -347,45 +351,56 @@ export function SetupPage() {
       </MessageBar>
     ) : null;
 
+  const viewTransition = {
+    initial: { opacity: 0, y: 8 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -8 },
+    transition: { duration: 0.18, ease: "easeOut" as const },
+  };
+
   // ── Home ───────────────────────────────────────────────────
   if (view === "home") {
     return (
       <div className={styles.page}>
-        <Card className={styles.card}>
-          <BrandHeader />
-          <div className={styles.actions}>
-            <Button
-              className={styles.primaryBtn}
-              appearance="primary"
-              size="large"
-              icon={<ArrowRight24Regular />}
-              iconPosition="after"
-              onClick={() => setView("cloud-login")}
-            >
-              Connect to Phase
-            </Button>
+        <AnimatePresence mode="wait">
+          <motion.div key="home" {...viewTransition}>
+            <Card className={styles.card}>
+              <BrandHeader />
+              <div className={styles.actions}>
+                <Button
+                  className={styles.primaryBtn}
+                  appearance="primary"
+                  size="large"
+                  icon={<ArrowRight24Regular />}
+                  iconPosition="after"
+                  onClick={() => setView("cloud-login")}
+                >
+                  Connect to Phase
+                </Button>
 
-            <Divider className={styles.orDivider}>or</Divider>
+                <Divider className={styles.orDivider}>or</Divider>
 
-            <Button
-              className={styles.secondaryBtn}
-              appearance="outline"
-              icon={<Link24Regular />}
-              onClick={() => setView("selfhosted-url")}
-            >
-              Connect to other server
-            </Button>
+                <Button
+                  className={styles.secondaryBtn}
+                  appearance="outline"
+                  icon={<Link24Regular />}
+                  onClick={() => setView("selfhosted-url")}
+                >
+                  Connect to other server
+                </Button>
 
-            <Button
-              className={styles.qrBtn}
-              appearance="subtle"
-              icon={<QrCode24Regular />}
-              onClick={() => setView("qr")}
-            >
-              Scan QR code
-            </Button>
-          </div>
-        </Card>
+                <Button
+                  className={styles.qrBtn}
+                  appearance="subtle"
+                  icon={<QrCode24Regular />}
+                  onClick={() => setView("qr")}
+                >
+                  Scan QR code
+                </Button>
+              </div>
+            </Card>
+          </motion.div>
+        </AnimatePresence>
       </div>
     );
   }
@@ -395,52 +410,56 @@ export function SetupPage() {
     const canSubmit = cloudEmail.trim() && cloudPassword;
     return (
       <div className={styles.page}>
-        <Card className={styles.card}>
-          <BackButton />
-          <Title2 className={styles.viewTitle}>Sign in to Phase</Title2>
-          <div className={styles.form}>
-            <ErrorBar />
-            <Input
-              placeholder="Email"
-              type="email"
-              value={cloudEmail}
-              onChange={(_, d) => setCloudEmail(d.value)}
-              contentBefore={<Mail24Regular />}
-              size="large"
-            />
-            <Input
-              placeholder="Password"
-              type="password"
-              value={cloudPassword}
-              onChange={(_, d) => setCloudPassword(d.value)}
-              contentBefore={<LockClosed24Regular />}
-              size="large"
-            />
-            {busy ? (
-              <div className={styles.loadingRow}>
-                <Spinner size="small" label="Signing in..." />
+        <AnimatePresence mode="wait">
+          <motion.div key="cloud-login" {...viewTransition}>
+            <Card className={styles.card}>
+              <BackButton />
+              <Title2 className={styles.viewTitle}>Sign in to Phase</Title2>
+              <div className={styles.form}>
+                <ErrorBar />
+                <Input
+                  placeholder="Email"
+                  type="email"
+                  value={cloudEmail}
+                  onChange={(_, d) => setCloudEmail(d.value)}
+                  contentBefore={<Mail24Regular />}
+                  size="large"
+                />
+                <Input
+                  placeholder="Password"
+                  type="password"
+                  value={cloudPassword}
+                  onChange={(_, d) => setCloudPassword(d.value)}
+                  contentBefore={<LockClosed24Regular />}
+                  size="large"
+                />
+                {busy ? (
+                  <div className={styles.loadingRow}>
+                    <Spinner size="small" label="Signing in..." />
+                  </div>
+                ) : (
+                  <Button
+                    appearance="primary"
+                    size="large"
+                    onClick={handleCloudLogin}
+                    disabled={!canSubmit}
+                  >
+                    Sign in
+                  </Button>
+                )}
+                <Body2 className={styles.formFooter}>
+                  Don&apos;t have an account?{" "}
+                  <button
+                    className={styles.switchLink}
+                    onClick={() => setView("cloud-register")}
+                  >
+                    Create one
+                  </button>
+                </Body2>
               </div>
-            ) : (
-              <Button
-                appearance="primary"
-                size="large"
-                onClick={handleCloudLogin}
-                disabled={!canSubmit}
-              >
-                Sign in
-              </Button>
-            )}
-            <Body2 className={styles.formFooter}>
-              Don&apos;t have an account?{" "}
-              <button
-                className={styles.switchLink}
-                onClick={() => setView("cloud-register")}
-              >
-                Create one
-              </button>
-            </Body2>
-          </div>
-        </Card>
+            </Card>
+          </motion.div>
+        </AnimatePresence>
       </div>
     );
   }
@@ -453,60 +472,64 @@ export function SetupPage() {
       regPassword === regConfirm;
     return (
       <div className={styles.page}>
-        <Card className={styles.card}>
-          <BackButton />
-          <Title2 className={styles.viewTitle}>Create Phase account</Title2>
-          <div className={styles.form}>
-            <ErrorBar />
-            <Input
-              placeholder="Email"
-              type="email"
-              value={regEmail}
-              onChange={(_, d) => setRegEmail(d.value)}
-              contentBefore={<Mail24Regular />}
-              size="large"
-            />
-            <Input
-              placeholder="Master password (min 8 chars)"
-              type="password"
-              value={regPassword}
-              onChange={(_, d) => setRegPassword(d.value)}
-              contentBefore={<LockClosed24Regular />}
-              size="large"
-            />
-            <Input
-              placeholder="Confirm master password"
-              type="password"
-              value={regConfirm}
-              onChange={(_, d) => setRegConfirm(d.value)}
-              contentBefore={<LockClosed24Regular />}
-              size="large"
-            />
-            {busy ? (
-              <div className={styles.loadingRow}>
-                <Spinner size="small" label="Creating account..." />
+        <AnimatePresence mode="wait">
+          <motion.div key="cloud-register" {...viewTransition}>
+            <Card className={styles.card}>
+              <BackButton />
+              <Title2 className={styles.viewTitle}>Create Phase account</Title2>
+              <div className={styles.form}>
+                <ErrorBar />
+                <Input
+                  placeholder="Email"
+                  type="email"
+                  value={regEmail}
+                  onChange={(_, d) => setRegEmail(d.value)}
+                  contentBefore={<Mail24Regular />}
+                  size="large"
+                />
+                <Input
+                  placeholder="Master password (min 8 chars)"
+                  type="password"
+                  value={regPassword}
+                  onChange={(_, d) => setRegPassword(d.value)}
+                  contentBefore={<LockClosed24Regular />}
+                  size="large"
+                />
+                <Input
+                  placeholder="Confirm master password"
+                  type="password"
+                  value={regConfirm}
+                  onChange={(_, d) => setRegConfirm(d.value)}
+                  contentBefore={<LockClosed24Regular />}
+                  size="large"
+                />
+                {busy ? (
+                  <div className={styles.loadingRow}>
+                    <Spinner size="small" label="Creating account..." />
+                  </div>
+                ) : (
+                  <Button
+                    appearance="primary"
+                    size="large"
+                    onClick={handleCloudRegister}
+                    disabled={!canSubmit}
+                  >
+                    Create account
+                  </Button>
+                )}
+                <Body2 className={styles.formFooter}>
+                  Already have an account?{" "}
+                  <button
+                    className={styles.switchLink}
+                    onClick={() => setView("cloud-login")}
+                  >
+                    Sign in
+                  </button>
+                </Body2>
               </div>
-            ) : (
-              <Button
-                appearance="primary"
-                size="large"
-                onClick={handleCloudRegister}
-                disabled={!canSubmit}
-              >
-                Create account
-              </Button>
-            )}
-            <Body2 className={styles.formFooter}>
-              Already have an account?{" "}
-              <button
-                className={styles.switchLink}
-                onClick={() => setView("cloud-login")}
-              >
-                Sign in
-              </button>
-            </Body2>
-          </div>
-        </Card>
+            </Card>
+          </motion.div>
+        </AnimatePresence>
       </div>
     );
   }
@@ -516,42 +539,46 @@ export function SetupPage() {
     const canSubmit = Boolean(normalizeServerUrl(shUrl) && instanceToken.trim());
     return (
       <div className={styles.page}>
-        <Card className={styles.card}>
-          <BackButton />
-          <Title2 className={styles.viewTitle}>Connect to server</Title2>
-          <div className={styles.form}>
-            <ErrorBar />
-            <Input
-              placeholder="https://phase.yourdomain.com"
-              value={shUrl}
-              onChange={(_, d) => setShUrl(d.value)}
-              contentBefore={<Globe24Regular />}
-              size="large"
-            />
-            <Input
-              placeholder="Instance Token (from /api/v1/setup-token)"
-              type="password"
-              value={instanceToken}
-              onChange={(_, d) => setInstanceToken(d.value)}
-              contentBefore={<Key24Regular />}
-              size="large"
-            />
-            {busy ? (
-              <div className={styles.loadingRow}>
-                <Spinner size="small" label="Connecting..." />
+        <AnimatePresence mode="wait">
+          <motion.div key="selfhosted-url" {...viewTransition}>
+            <Card className={styles.card}>
+              <BackButton />
+              <Title2 className={styles.viewTitle}>Connect to server</Title2>
+              <div className={styles.form}>
+                <ErrorBar />
+                <Input
+                  placeholder="https://phase.yourdomain.com"
+                  value={shUrl}
+                  onChange={(_, d) => setShUrl(d.value)}
+                  contentBefore={<Globe24Regular />}
+                  size="large"
+                />
+                <Input
+                  placeholder="Instance Token (from /api/v1/setup-token)"
+                  type="password"
+                  value={instanceToken}
+                  onChange={(_, d) => setInstanceToken(d.value)}
+                  contentBefore={<Key24Regular />}
+                  size="large"
+                />
+                {busy ? (
+                  <div className={styles.loadingRow}>
+                    <Spinner size="small" label="Connecting..." />
+                  </div>
+                ) : (
+                  <Button
+                    appearance="primary"
+                    size="large"
+                    onClick={handleConnect}
+                    disabled={!canSubmit}
+                  >
+                    Connect
+                  </Button>
+                )}
               </div>
-            ) : (
-              <Button
-                appearance="primary"
-                size="large"
-                onClick={handleConnect}
-                disabled={!canSubmit}
-              >
-                Connect
-              </Button>
-            )}
-          </div>
-        </Card>
+            </Card>
+          </motion.div>
+        </AnimatePresence>
       </div>
     );
   }
@@ -589,21 +616,25 @@ export function SetupPage() {
 
     return (
       <div className={styles.page}>
-        <Card className={styles.card}>
-          <BackButton />
-          <Title2 className={styles.viewTitle}>Scan QR code</Title2>
-          <ErrorBar />
-          {busy ? (
-            <div className={styles.loadingRow}>
-              <Spinner size="small" label="Connecting..." />
-            </div>
-          ) : (
-            <QrScanner
-              onScan={handleQrScan}
-              onError={(msg) => setError(msg)}
-            />
-          )}
-        </Card>
+        <AnimatePresence mode="wait">
+          <motion.div key="qr" {...viewTransition}>
+            <Card className={styles.card}>
+              <BackButton />
+              <Title2 className={styles.viewTitle}>Scan QR code</Title2>
+              <ErrorBar />
+              {busy ? (
+                <div className={styles.loadingRow}>
+                  <Spinner size="small" label="Connecting..." />
+                </div>
+              ) : (
+                <QrScanner
+                  onScan={handleQrScan}
+                  onError={(msg) => setError(msg)}
+                />
+              )}
+            </Card>
+          </motion.div>
+        </AnimatePresence>
       </div>
     );
   }

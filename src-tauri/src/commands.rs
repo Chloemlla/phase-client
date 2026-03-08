@@ -2,8 +2,9 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tauri::Manager;
 use tauri::{AppHandle, Emitter};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use tauri::Manager;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tokio::task::AbortHandle;

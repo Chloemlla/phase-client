@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   makeStyles,
   tokens,
@@ -164,6 +165,7 @@ export function SettingsPage() {
   const [localShortcut, setLocalShortcut] = useState(spotlightShortcut);
   const [shortcutSaved, setShortcutSaved] = useState(false);
   const [isRecordingShortcut, setIsRecordingShortcut] = useState(false);
+  const [liveModifiers, setLiveModifiers] = useState("");
 
   const [sessions, setSessions] = useState<DeviceSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -243,12 +245,24 @@ export function SettingsPage() {
     }
   };
 
+  const sectionVariants = {
+    hidden: { opacity: 0, y: 8 },
+    visible: { opacity: 1, y: 0 },
+  };
+
   return (
-    <div className={styles.container}>
-      <Title3>Settings</Title3>
+    <motion.div
+      className={styles.container}
+      initial="hidden"
+      animate="visible"
+      variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
+    >
+      <motion.div variants={sectionVariants} transition={{ duration: 0.18 }}>
+        <Title3>Settings</Title3>
+      </motion.div>
 
       {/* Account */}
-      <div className={styles.section}>
+      <motion.div className={styles.section} variants={sectionVariants} transition={{ duration: 0.18 }}>
         <div className={styles.sectionTitle}>
           <Person24Regular />
           <Body2>Account</Body2>
@@ -286,10 +300,10 @@ export function SettingsPage() {
             </Button>
           </div>
         </Card>
-      </div>
+      </motion.div>
 
       {/* Preferences */}
-      <div className={styles.section}>
+      <motion.div className={styles.section} variants={sectionVariants} transition={{ duration: 0.18 }}>
         <div className={styles.sectionTitle}>
           <Keyboard24Regular />
           <Body2>Preferences</Body2>
@@ -307,17 +321,39 @@ export function SettingsPage() {
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <Input
-                value={isRecordingShortcut ? "Listening..." : localShortcut}
-                onFocus={() => setIsRecordingShortcut(true)}
-                onBlur={() => setIsRecordingShortcut(false)}
+                value={isRecordingShortcut ? (liveModifiers || "Listening...") : localShortcut}
+                onFocus={() => {
+                  setIsRecordingShortcut(true);
+                  setLiveModifiers("");
+                  // Unregister the real global shortcut while recording to prevent it from firing.
+                  // Register a harmless F24 placeholder so the command doesn't fail.
+                  cmdSetSpotlightShortcut(spotlightShortcut, "F24").catch(() => {});
+                }}
+                onBlur={() => {
+                  setIsRecordingShortcut(false);
+                  setLiveModifiers("");
+                  // Re-register the current shortcut when leaving recording mode
+                  cmdSetSpotlightShortcut("F24", spotlightShortcut).catch(console.error);
+                }}
                 onKeyDown={(e) => {
                   if (!isRecordingShortcut) return;
                   e.preventDefault();
                   e.stopPropagation();
 
-                  // Ignore if they just press modifiers without a normal key
-                  if (["Shift", "Control", "Alt", "Meta", "Escape"].includes(e.key)) {
-                    if (e.key === "Escape") setIsRecordingShortcut(false);
+                  if (e.key === "Escape") {
+                    setIsRecordingShortcut(false);
+                    setLiveModifiers("");
+                    (e.target as HTMLInputElement).blur();
+                    return;
+                  }
+
+                  // Show live modifiers as they're pressed
+                  if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) {
+                    const parts = [];
+                    if (e.metaKey || e.ctrlKey) parts.push("Ctrl");
+                    if (e.altKey) parts.push("Alt");
+                    if (e.shiftKey) parts.push("Shift");
+                    setLiveModifiers(parts.length > 0 ? parts.join("+") + "+" : "");
                     return;
                   }
 
@@ -334,9 +370,19 @@ export function SettingsPage() {
                   setLocalShortcut(generated);
                   setShortcutSaved(false);
                   setIsRecordingShortcut(false);
+                  setLiveModifiers("");
 
                   // Blurring the input after listening completes
                   (e.target as HTMLInputElement).blur();
+                }}
+                onKeyUp={(e) => {
+                  if (!isRecordingShortcut) return;
+                  // Update live modifiers when a modifier is released
+                  const parts = [];
+                  if (e.metaKey || e.ctrlKey) parts.push("Ctrl");
+                  if (e.altKey) parts.push("Alt");
+                  if (e.shiftKey) parts.push("Shift");
+                  setLiveModifiers(parts.length > 0 ? parts.join("+") + "+" : "");
                 }}
                 readOnly // Block normal typing
                 placeholder="Click to set"
@@ -353,10 +399,10 @@ export function SettingsPage() {
             </div>
           </div>
         </Card>
-      </div>
+      </motion.div>
 
       {/* Appearance */}
-      <div className={styles.section}>
+      <motion.div className={styles.section} variants={sectionVariants} transition={{ duration: 0.18 }}>
         <div className={styles.sectionTitle}>
           <WeatherSunny24Regular />
           <Body2>Appearance</Body2>
@@ -397,10 +443,10 @@ export function SettingsPage() {
             </Dropdown>
           </div>
         </Card>
-      </div>
+      </motion.div>
 
       {/* Security */}
-      <div className={styles.section}>
+      <motion.div className={styles.section} variants={sectionVariants} transition={{ duration: 0.18 }}>
         <div className={styles.sectionTitle}>
           <ShieldLock24Regular />
           <Body2>Security</Body2>
@@ -445,10 +491,10 @@ export function SettingsPage() {
             </Dropdown>
           </div>
         </Card>
-      </div>
+      </motion.div>
 
       {/* Data */}
-      <div className={styles.section}>
+      <motion.div className={styles.section} variants={sectionVariants} transition={{ duration: 0.18 }}>
         <div className={styles.sectionTitle}>
           <ArrowDownload24Regular />
           <Body2>Data</Body2>
@@ -503,10 +549,10 @@ export function SettingsPage() {
             </Button>
           </div>
         </Card>
-      </div>
+      </motion.div>
 
       {/* Device Management */}
-      <div className={styles.section}>
+      <motion.div className={styles.section} variants={sectionVariants} transition={{ duration: 0.18 }}>
         <div className={styles.sectionTitle}>
           <Laptop24Regular />
           <Body2>Device Management</Body2>
@@ -563,10 +609,10 @@ export function SettingsPage() {
             </div>
           )}
         </Card>
-      </div>
+      </motion.div>
 
       {/* About */}
-      <div className={styles.section}>
+      <motion.div className={styles.section} variants={sectionVariants} transition={{ duration: 0.18 }}>
         <div className={styles.sectionTitle}>
           <Info24Regular />
           <Body2>About</Body2>
@@ -583,9 +629,11 @@ export function SettingsPage() {
             </div>
           </div>
         </Card>
-      </div>
+      </motion.div>
 
-      <Caption1 className={styles.version}>Phase v0.1.0</Caption1>
-    </div>
+      <motion.div variants={sectionVariants} transition={{ duration: 0.18 }}>
+        <Caption1 className={styles.version}>Phase v0.1.0</Caption1>
+      </motion.div>
+    </motion.div>
   );
 }

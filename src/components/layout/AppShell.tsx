@@ -76,12 +76,14 @@ const useStyles = makeStyles({
     minWidth: "unset",
     width: "40px",
     height: "40px",
+    padding: "0",
     borderRadius: "8px",
   },
   navButtonActive: {
     minWidth: "unset",
     width: "40px",
     height: "40px",
+    padding: "0",
     borderRadius: "8px",
     backgroundColor: tokens.colorNeutralBackground1Selected,
   },
@@ -157,6 +159,10 @@ export function AppShell() {
   const isTokens = location.pathname === "/" || location.pathname === "";
   const isSettings = location.pathname === "/settings";
 
+  const navBtnStyle: React.CSSProperties = {
+    width: 40, height: 40, minWidth: 40, maxWidth: 40, padding: 0, borderRadius: 8,
+  };
+
   return (
     <div className={styles.shell}>
       {/* Desktop sidebar */}
@@ -167,10 +173,13 @@ export function AppShell() {
 
         <Tooltip content="Tokens" relationship="label" positioning="after">
           <Button
-            className={isTokens ? styles.navButtonActive : styles.navButton}
             appearance="subtle"
             icon={<Key24Regular />}
             onClick={() => navigate("/")}
+            style={{
+              ...navBtnStyle,
+              backgroundColor: isTokens ? tokens.colorNeutralBackground1Selected : undefined,
+            }}
           />
         </Tooltip>
 
@@ -179,10 +188,13 @@ export function AppShell() {
         <div className={styles.bottomNav}>
           <Tooltip content="Settings" relationship="label" positioning="after">
             <Button
-              className={isSettings ? styles.navButtonActive : styles.navButton}
               appearance="subtle"
               icon={<Settings24Regular />}
               onClick={() => navigate("/settings")}
+              style={{
+                ...navBtnStyle,
+                backgroundColor: isSettings ? tokens.colorNeutralBackground1Selected : undefined,
+              }}
             />
           </Tooltip>
         </div>
