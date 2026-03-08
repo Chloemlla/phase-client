@@ -27,7 +27,7 @@ pub fn run() {
 
                 // Create the spotlight window programmatically (desktop only)
                 use tauri::WebviewWindowBuilder;
-                let spotlight = WebviewWindowBuilder::new(
+                let mut builder = WebviewWindowBuilder::new(
                     app,
                     "spotlight",
                     tauri::WebviewUrl::App("index.html".into()),
@@ -38,8 +38,15 @@ pub fn run() {
                 .visible(false)
                 .always_on_top(true)
                 .center()
-                .skip_taskbar(true)
-                .build()?;
+                .skip_taskbar(true);
+
+                // transparent() is not available on macOS
+                #[cfg(not(target_os = "macos"))]
+                {
+                    builder = builder.transparent(true);
+                }
+
+                let spotlight = builder.build()?;
 
                 // Apply Vibrancy to Spotlight window
                 #[cfg(target_os = "windows")]
