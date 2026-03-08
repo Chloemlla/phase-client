@@ -57,6 +57,7 @@ export interface RestoreResult {
   instanceSalt: string | null;
   deviceId: string | null;
   vaultVersion: number;
+  jwt: string;
 }
 
 export type UnlistenFn = () => void;
@@ -189,6 +190,23 @@ export const cmdReencryptVault = (
 
 export const cmdRestoreSession = (): Promise<RestoreResult | null> =>
   invoke<RestoreResult | null>("cmd_restore_session", {});
+
+/// Resume session: tries cached JWT first, only creates a new server session
+/// if the JWT has expired (HTTP 401).
+export const cmdResumeSession = (
+  serverUrl: string,
+  jwt: string,
+  instanceToken: string,
+  instanceSalt: string,
+  deviceId?: string
+): Promise<SessionResult> =>
+  invoke<SessionResult>("cmd_resume_session", {
+    serverUrl,
+    jwt,
+    instanceToken,
+    instanceSalt,
+    deviceId,
+  });
 
 /// Offline unlock: derives key from cached instanceToken + instanceSalt,
 /// decrypts local vault blob without any network requests.

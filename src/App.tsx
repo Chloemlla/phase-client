@@ -30,6 +30,7 @@ import { SpotlightSearch } from "./components/SpotlightSearch";
 import { useAppStore } from "./store/appStore";
 import { cmdClearSession, cmdRestoreSession, cmdSetSpotlightShortcut } from "./lib/tauri";
 import { verifyBiometricUnlock, hasBiometricCredential } from "./lib/biometric";
+import { isMobile } from "./lib/platform";
 import "./App.css";
 
 // ── Styles for BiometricLockGate ──────────────────────────────────────
@@ -180,17 +181,18 @@ function AppRoutes() {
   const location = useLocation();
   const [privacyLocked, setPrivacyLocked] = useState(false);
 
-  // Set privacy lock when authenticated + biometric enabled
+  // Set privacy lock when authenticated + biometric enabled (mobile only)
   useEffect(() => {
-    if (!isAuthenticated || !biometricLockEnabled || !hasBiometricCredential()) {
+    if (!isAuthenticated || !biometricLockEnabled || !hasBiometricCredential() || !isMobile) {
       setPrivacyLocked(false);
       return;
     }
     setPrivacyLocked(true);
   }, [isAuthenticated, biometricLockEnabled]);
 
-  // Re-lock when app returns to foreground
+  // Re-lock when app returns to foreground (mobile only)
   useEffect(() => {
+    if (!isMobile) return;
     const onVisibility = () => {
       if (document.visibilityState === "visible" && isAuthenticated && biometricLockEnabled) {
         setPrivacyLocked(true);
@@ -278,7 +280,7 @@ function App() {
   useEffect(() => {
     if (
       getCurrentWindow().label === "main" &&
-      !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      !isMobile
     ) {
       cmdSetSpotlightShortcut(null, spotlightShortcut).catch(console.error);
     }
@@ -304,7 +306,7 @@ function App() {
   // Spotlight is desktop-only; skip on mobile platforms
   if (
     getCurrentWindow().label === "spotlight" &&
-    !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    !isMobile
   ) {
     return <SpotlightSearch />;
   }

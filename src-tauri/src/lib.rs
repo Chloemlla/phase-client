@@ -121,6 +121,7 @@ pub fn run() {
             commands::cmd_logout,
             commands::cmd_reencrypt_vault,
             commands::cmd_restore_session,
+            commands::cmd_resume_session,
             commands::cmd_offline_unlock,
             commands::cmd_set_spotlight_shortcut,
         ]);
@@ -135,6 +136,9 @@ pub fn run() {
             }
             _ => {}
         });
+
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let builder = builder.plugin(tauri_plugin_biometric::init());
 
     builder
         .run(tauri::generate_context!())

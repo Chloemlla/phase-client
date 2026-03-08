@@ -427,6 +427,7 @@ pub struct RestoreResult {
     pub instance_salt: Option<String>,
     pub device_id: Option<String>,
     pub vault_version: i64,
+    pub jwt: String,
 }
 
 /// Attempts to restore a previous session from local storage.
@@ -451,6 +452,7 @@ pub async fn cmd_restore_session(app: AppHandle) -> Result<Option<RestoreResult>
         instance_salt: session.instance_salt,
         device_id: session.device_id,
         vault_version: session.vault_version,
+        jwt: session.jwt,
     }))
 }
 
@@ -479,6 +481,109 @@ pub async fn cmd_offline_unlock(
         vault_json,
         vault_version: local.version,
     })
+}
+
+// ── Resume session (reuse cached JWT when possible) ──────────────────────
+
+/// Attempts to reuse a cached JWT to fetch the vault.
+/// If the JWT has expired (HTTP 401), falls back to creating a new session
+/// via `/auth/unlock`. This avoids creating duplicate device entries on
+/// every app launch.
+#[tauri::command]
+pub async fn cmd_resume_session(
+    app: AppHandle,
+    server_url: String,
+    jwt: String,
+    instance_token: String,
+    instance_salt: String,
+    device_id: Option<String>,
+) -> Result<SessionResult, String> {
+    let (enc_key, _) = crypto::derive_keys(&instance_token, &instance_salt)?;
+
+    // Try reusing the cached JWT
+    match api::get_vault(&server_url, &jwt, Some(&instance_token)).await {
+        Ok(vault_resp) => {
+            // JWT still valid — no new session needed
+            let vault_json = crypto::decrypt_vault(&vault_resp.encrypted_vault, &enc_key)?;
+            let handle = store_session(enc_key);
+
+            vault::save_session(
+                &app,
+                &SessionData {
+                    jwt: jwt.clone(),
+                    server_url: server_url.clone(),
+                    connection_mode: "selfhosted".to_string(),
+                    instance_token: Some(instance_token),
+                    instance_salt: Some(instance_salt),
+                    device_id: device_id.clone(),
+                    vault_version: vault_resp.version,
+                },
+            )?;
+
+            vault::save_local(
+                &app,
+                &LocalVaultData {
+                    encrypted_b64: vault_resp.encrypted_vault,
+                    version: vault_resp.version,
+                },
+            )?;
+
+            Ok(SessionResult {
+                handle,
+                jwt,
+                device_id,
+                vault_json,
+                vault_version: vault_resp.version,
+            })
+        }
+        Err(e) if e.starts_with("HTTP 401") => {
+            // JWT expired — fall back to creating a new session
+            let dev_name = device_name();
+            let auth_resp = api::open(
+                &server_url,
+                &instance_token,
+                &dev_name,
+                device_id.as_deref(),
+            )
+            .await?;
+            let new_jwt = auth_resp.token.clone();
+
+            let vault_resp =
+                api::get_vault(&server_url, &new_jwt, Some(&instance_token)).await?;
+            let vault_json = crypto::decrypt_vault(&vault_resp.encrypted_vault, &enc_key)?;
+            let handle = store_session(enc_key);
+
+            vault::save_session(
+                &app,
+                &SessionData {
+                    jwt: new_jwt.clone(),
+                    server_url: server_url.clone(),
+                    connection_mode: "selfhosted".to_string(),
+                    instance_token: Some(instance_token),
+                    instance_salt: Some(instance_salt),
+                    device_id: auth_resp.device_id.clone(),
+                    vault_version: vault_resp.version,
+                },
+            )?;
+
+            vault::save_local(
+                &app,
+                &LocalVaultData {
+                    encrypted_b64: vault_resp.encrypted_vault,
+                    version: vault_resp.version,
+                },
+            )?;
+
+            Ok(SessionResult {
+                handle,
+                jwt: new_jwt,
+                device_id: auth_resp.device_id,
+                vault_json,
+                vault_version: vault_resp.version,
+            })
+        }
+        Err(e) => Err(e), // Network or other errors — propagate
+    }
 }
 
 // ── Decrypt local vault blob ───────────────────────────────────────────────
