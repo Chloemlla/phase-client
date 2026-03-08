@@ -19,7 +19,8 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
-            // Apply Vibrancy to Spotlight window
+            // Apply Vibrancy to Spotlight window (desktop only)
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             if let Some(window) = app.get_webview_window("spotlight") {
                 #[cfg(target_os = "windows")]
                 {

@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 env:
@@ -132,8 +132,37 @@ jobs:
       - name: Init Android project
         run: pnpm tauri android init
 
-      - name: Build Android APK (debug, arm64 only)
-        run: pnpm tauri android build --debug --target aarch64
+      - name: Setup Android signing
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          echo "$ANDROID_KEYSTORE" | base64 -d > /tmp/release.keystore
+          cat >> src-tauri/gen/android/app/build.gradle.kts << 'EOF'
+
+          android {
+              signingConfigs {
+                  create("release") {
+                      storeFile = file(System.getenv("KEYSTORE_FILE") ?: "")
+                      storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+                      keyAlias = System.getenv("KEY_ALIAS") ?: ""
+                      keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+                  }
+              }
+              buildTypes {
+                  getByName("release") {
+                      signingConfig = signingConfigs.getByName("release")
+                  }
+              }
+          }
+          EOF
+
+      - name: Build Android APK (release, arm64)
+        env:
+          KEYSTORE_FILE: /tmp/release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: pnpm tauri android build --target aarch64
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -143,7 +172,7 @@ jobs:
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
 
-  # ── iOS (build only, no signing) ──────────────────────────────────────────
+  # ── iOS (simulator release, no signing) ───────────────────────────────────
   ios:
     runs-on: macos-latest
     name: iOS
@@ -174,8 +203,8 @@ jobs:
       - name: Init iOS project
         run: pnpm tauri ios init
 
-      - name: Build iOS (simulator, no signing)
-        run: pnpm tauri ios build --debug --target aarch64-sim
+      - name: Build iOS (simulator, release)
+        run: pnpm tauri ios build --target aarch64-sim
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

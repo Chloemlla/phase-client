@@ -273,10 +273,13 @@ function App() {
     () => window.matchMedia("(prefers-color-scheme: dark)").matches
   );
 
-  // Initialize spotlight shortcut
+  // Initialize spotlight shortcut (desktop only)
   const spotlightShortcut = useAppStore((s) => s.spotlightShortcut);
   useEffect(() => {
-    if (getCurrentWindow().label === "main") {
+    if (
+      getCurrentWindow().label === "main" &&
+      !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    ) {
       cmdSetSpotlightShortcut(null, spotlightShortcut).catch(console.error);
     }
   }, [spotlightShortcut]);
@@ -298,7 +301,11 @@ function App() {
 
   const theme = resolvedDark ? webDarkTheme : webLightTheme;
 
-  if (getCurrentWindow().label === "spotlight") {
+  // Spotlight is desktop-only; skip on mobile platforms
+  if (
+    getCurrentWindow().label === "spotlight" &&
+    !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  ) {
     return <SpotlightSearch />;
   }
 
