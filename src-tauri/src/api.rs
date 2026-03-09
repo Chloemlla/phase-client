@@ -24,7 +24,14 @@ pub struct HealthResponse {
 #[serde(rename_all = "camelCase")]
 pub struct AuthResponse {
     pub token: String,
+    pub salt: Option<String>,
     pub device_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SaltResponse {
+    pub salt: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -127,19 +134,42 @@ pub async fn health(
         .map_err(|e| format!("Parse error: {e}"))
 }
 
-/// First-time setup: stores encrypted vault on server, returns JWT.
-pub async fn setup(
+pub async fn fetch_salt(
     server_url: &str,
-    instance_token: &str,
+    instance_token: Option<&str>,
+    email: &str,
+) -> Result<SaltResponse, String> {
+    let url = api_url(server_url, &format!("/auth/salt?email={}", urlencoding::encode(email)));
+    let req = with_instance_token(HTTP_CLIENT.get(&url), instance_token);
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {e}"))?;
+    let resp = check_response_error(resp).await?;
+    resp.json::<SaltResponse>()
+        .await
+        .map_err(|e| format!("Parse error: {e}"))
+}
+
+/// First-time setup: stores encrypted vault on server, returns JWT.
+pub async fn register(
+    server_url: &str,
+    instance_token: Option<&str>,
+    email: &str,
+    auth_hash: &str,
+    salt: &str,
     encrypted_vault: &str,
     device_name: &str,
 ) -> Result<AuthResponse, String> {
-    let url = api_url(server_url, "/auth/init");
+    let url = api_url(server_url, "/auth/register");
     let body = serde_json::json!({
+        "email": email,
+        "authHash": auth_hash,
+        "salt": salt,
         "encryptedVault": encrypted_vault,
         "deviceName": device_name,
     });
-    let resp = with_instance_token(HTTP_CLIENT.post(&url), Some(instance_token))
+    let resp = with_instance_token(HTTP_CLIENT.post(&url), instance_token)
         .json(&body)
         .send()
         .await
@@ -151,15 +181,17 @@ pub async fn setup(
 }
 
 /// Subsequent unlock: creates a new session, returns JWT.
-pub async fn open(
+pub async fn login(
     server_url: &str,
-    instance_token: &str,
+    instance_token: Option<&str>,
+    email: &str,
+    auth_hash: &str,
     device_name: &str,
     device_id: Option<&str>,
 ) -> Result<AuthResponse, String> {
-    let url = api_url(server_url, "/auth/unlock");
-    let body = serde_json::json!({ "deviceName": device_name, "deviceId": device_id });
-    let resp = with_instance_token(HTTP_CLIENT.post(&url), Some(instance_token))
+    let url = api_url(server_url, "/auth/login");
+    let body = serde_json::json!({ "email": email, "authHash": auth_hash, "deviceName": device_name, "deviceId": device_id });
+    let resp = with_instance_token(HTTP_CLIENT.post(&url), instance_token)
         .json(&body)
         .send()
         .await

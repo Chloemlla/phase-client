@@ -113,6 +113,114 @@ pub async fn cmd_health(
     api::health(&server_url, instance_token.as_deref()).await
 }
 
+// ── Cloud Register / Login ───────────────────────────────────────────
+
+#[tauri::command]
+pub async fn cmd_cloud_register(
+    app: AppHandle,
+    server_url: String,
+    email: String,
+    master_password: String,
+) -> Result<SessionResult, String> {
+    // Generate a random salt (using uuid for convenience)
+    let salt = uuid::new_v4_string();
+
+    let (enc_key, auth_hash) = crypto::derive_keys(&master_password, &salt)?;
+
+    let empty_vault = r#"{"version":1,"tokens":[],"settings":{"groups":[],"defaultGroup":"","sortOrder":"manual","displayMode":"list"},"lastModified":0}"#;
+    let encrypted_vault = crypto::encrypt_vault(empty_vault, &enc_key)?;
+
+    let dev_name = device_name();
+    let auth_resp = api::register(&server_url, None, &email, &auth_hash, &salt, &encrypted_vault, &dev_name).await?;
+    let jwt = auth_resp.token.clone();
+    let handle = store_session(enc_key);
+
+    vault::save_session(
+        &app,
+        &SessionData {
+            jwt: jwt.clone(),
+            server_url: server_url.clone(),
+            connection_mode: "cloud".to_string(),
+            instance_token: None,
+            instance_salt: Some(salt),
+            device_id: auth_resp.device_id.clone(),
+            vault_version: 1,
+        },
+    )?;
+
+    vault::save_local(
+        &app,
+        &LocalVaultData {
+            encrypted_b64: encrypted_vault,
+            version: 1,
+        },
+    )?;
+
+    Ok(SessionResult {
+        handle,
+        jwt,
+        device_id: auth_resp.device_id,
+        vault_json: empty_vault.to_string(),
+        vault_version: 1,
+    })
+}
+
+#[tauri::command]
+pub async fn cmd_cloud_login(
+    app: AppHandle,
+    server_url: String,
+    email: String,
+    master_password: String,
+    device_id: Option<String>,
+) -> Result<SessionResult, String> {
+    let dev_name = device_name();
+    
+    // 1. fetch user salt
+    let salt_resp = api::fetch_salt(&server_url, None, &email).await?;
+    let salt = salt_resp.salt;
+
+    // 2. Derive key and auth_hash using salt
+    let (enc_key, auth_hash) = crypto::derive_keys(&master_password, &salt)?;
+
+    let auth_resp = api::login(&server_url, None, &email, &auth_hash, &dev_name, device_id.as_deref()).await?;
+    let jwt = auth_resp.token.clone();
+
+    // Fetch and decrypt vault
+    let vault_resp = api::get_vault(&server_url, &jwt, None).await?;
+    let vault_json = crypto::decrypt_vault(&vault_resp.encrypted_vault, &enc_key)?;
+
+    let handle = store_session(enc_key);
+
+    vault::save_session(
+        &app,
+        &SessionData {
+            jwt: jwt.clone(),
+            server_url: server_url.clone(),
+            connection_mode: "cloud".to_string(),
+            instance_token: None,
+            instance_salt: Some(salt),
+            device_id: auth_resp.device_id.clone(),
+            vault_version: vault_resp.version,
+        },
+    )?;
+
+    vault::save_local(
+        &app,
+        &LocalVaultData {
+            encrypted_b64: vault_resp.encrypted_vault,
+            version: vault_resp.version,
+        },
+    )?;
+
+    Ok(SessionResult {
+        handle,
+        jwt,
+        device_id: auth_resp.device_id,
+        vault_json,
+        vault_version: vault_resp.version,
+    })
+}
+
 // ── Self-hosted setup (first time) ────────────────────────────────────────
 
 /// Called when the server reports initialized=false.

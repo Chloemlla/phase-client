@@ -32,6 +32,8 @@ import {
   cmdHealth,
   cmdShSetup,
   cmdShOpen,
+  cmdCloudLogin,
+  cmdCloudRegister,
   cmdOfflineUnlock,
   cmdResumeSession,
   type RestoreResult,
@@ -302,14 +304,44 @@ export function SetupPage() {
     }
   }
 
-  // ── Cloud login (stub) ────────────────────────────────────────
+  // ── Cloud login (Phase Multi-User) ────────────────────────────────────────
   const handleCloudLogin = async () => {
-    setError("Phase Cloud is not available in this build.");
+    const normalizedUrl = normalizeServerUrl(shUrl || "https://cloud.phase.app");
+    if (!normalizedUrl || !cloudEmail.trim() || !cloudPassword) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await cmdCloudLogin(normalizedUrl, cloudEmail, cloudPassword, storedDeviceId ?? undefined);
+      setServerUrl(normalizedUrl);
+      setConnectionMode("cloud");
+      setSession(result.handle, result.jwt, null, result.deviceId ?? storedDeviceId, result.vaultVersion);
+      setVaultData(parseVaultTokens(result.vaultJson), result.vaultVersion);
+      navigate("/");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
-  // ── Cloud register (stub) ─────────────────────────────────────
+  // ── Cloud register (Phase Multi-User) ─────────────────────────────────────
   const handleCloudRegister = async () => {
-    setError("Phase Cloud is not available in this build.");
+    const normalizedUrl = normalizeServerUrl(shUrl || "https://cloud.phase.app");
+    if (!normalizedUrl || !regEmail.trim() || regPassword.length < 8) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await cmdCloudRegister(normalizedUrl, regEmail, regPassword);
+      setServerUrl(normalizedUrl);
+      setConnectionMode("cloud");
+      setSession(result.handle, result.jwt, null, result.deviceId ?? storedDeviceId, result.vaultVersion);
+      setVaultData(parseVaultTokens(result.vaultJson), result.vaultVersion);
+      navigate("/");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   // ── Self-hosted: verify URL + Instance Token, then auto-connect ──

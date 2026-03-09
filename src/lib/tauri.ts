@@ -83,6 +83,30 @@ export const cmdHealth = (
 ): Promise<HealthResponse> =>
   invoke<HealthResponse>("cmd_health", { serverUrl, instanceToken });
 
+export const cmdCloudRegister = (
+  serverUrl: string,
+  email: string,
+  masterPassword: string
+): Promise<SessionResult> =>
+  invoke<SessionResult>("cmd_cloud_register", {
+    serverUrl,
+    email,
+    masterPassword,
+  });
+
+export const cmdCloudLogin = (
+  serverUrl: string,
+  email: string,
+  masterPassword: string,
+  deviceId?: string
+): Promise<SessionResult> =>
+  invoke<SessionResult>("cmd_cloud_login", {
+    serverUrl,
+    email,
+    masterPassword,
+    deviceId,
+  });
+
 /// First-time setup: derives key from password+instanceSalt, encrypts empty vault, stores on server.
 export const cmdShSetup = (
   serverUrl: string,

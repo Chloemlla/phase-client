@@ -106,6 +106,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::cmd_health,
+            commands::cmd_cloud_register,
+            commands::cmd_cloud_login,
             commands::cmd_sh_setup,
             commands::cmd_sh_open,
             commands::cmd_encrypt_vault,
