@@ -33,7 +33,9 @@ import {
   cmdShSetup,
   cmdShOpen,
   cmdOfflineUnlock,
+  cmdResumeSession,
   type RestoreResult,
+  type SessionResult,
 } from "../../lib/tauri";
 import type { Token } from "../../types";
 import { normalizeServerUrl } from "../../lib/url";
@@ -213,16 +215,30 @@ export function SetupPage() {
     setError("");
     (async () => {
       try {
-        // Try online first: health check → create session → fetch vault
         const normalizedUrl = normalizeServerUrl(restoreData.serverUrl);
-        const health = await cmdHealth(normalizedUrl, restoreData.instanceToken ?? undefined);
-        const result = await cmdShOpen(
-          normalizedUrl,
-          restoreData.instanceToken ?? "",
-          health.instanceSalt,
-          "",
-          restoreData.deviceId ?? storedDeviceId ?? undefined
-        );
+        let result: SessionResult;
+
+        if (restoreData.jwt && restoreData.instanceToken && restoreData.instanceSalt) {
+          // Resume existing session (reuses cached JWT to avoid duplicate devices)
+          result = await cmdResumeSession(
+            normalizedUrl,
+            restoreData.jwt,
+            restoreData.instanceToken,
+            restoreData.instanceSalt,
+            restoreData.deviceId ?? storedDeviceId ?? undefined
+          );
+        } else {
+          // No cached JWT or salt — full login required
+          const health = await cmdHealth(normalizedUrl, restoreData.instanceToken ?? undefined);
+          result = await cmdShOpen(
+            normalizedUrl,
+            restoreData.instanceToken ?? "",
+            health.instanceSalt,
+            "",
+            restoreData.deviceId ?? storedDeviceId ?? undefined
+          );
+        }
+
         setServerUrl(normalizedUrl);
         setConnectionMode(
           restoreData.connectionMode === "self-hosted" || restoreData.connectionMode === "selfhosted"

@@ -1,0 +1,9 @@
+{
+  "identifier": "mobile",
+  "description": "Capabilities specific to mobile platforms",
+  "windows": ["main"],
+  "platforms": ["android", "iOS"],
+  "permissions": [
+    "biometric:default"
+  ]
+}

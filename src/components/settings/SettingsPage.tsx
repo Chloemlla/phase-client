@@ -56,6 +56,7 @@ import {
   clearBiometricCredential,
   hasBiometricCredential,
 } from "../../lib/biometric";
+import { isMobile } from "../../lib/platform";
 
 const useStyles = makeStyles({
   container: {
@@ -390,7 +391,8 @@ export function SettingsPage() {
         </Card>
       </motion.div>
 
-      {/* Preferences */}
+      {/* Preferences — desktop only */}
+      {!isMobile && (
       <motion.div className={styles.section} variants={sectionVariants} transition={{ duration: 0.18 }}>
         <div className={styles.sectionTitle}>
           <Keyboard24Regular />
@@ -488,6 +490,7 @@ export function SettingsPage() {
           </div>
         </Card>
       </motion.div>
+      )}
 
       {/* Appearance */}
       <motion.div className={styles.section} variants={sectionVariants} transition={{ duration: 0.18 }}>
@@ -540,6 +543,7 @@ export function SettingsPage() {
           <Body2>Security</Body2>
         </div>
         <Card className={styles.card}>
+          {isMobile && (<>
           <div className={styles.row}>
             <div className={styles.rowLeft}>
               <Fingerprint24Regular className={styles.rowIcon} />
@@ -557,6 +561,7 @@ export function SettingsPage() {
             />
           </div>
           <Divider />
+          </>)}
           <div className={styles.row}>
             <div className={styles.rowLeft}>
               <Timer24Regular className={styles.rowIcon} />
