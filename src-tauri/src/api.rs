@@ -58,6 +58,23 @@ pub struct SessionsResponse {
     pub sessions: Vec<DeviceSession>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MembershipResponse {
+    pub active: bool,
+    pub expires_at: Option<i64>,
+    pub expires_at_iso: Option<String>,
+    pub remaining_days: i64,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RedeemResponse {
+    pub membership_expires_at: i64,
+    pub membership_days_added: i64,
+    pub membership_expires_at_iso: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DevicesResponse {
@@ -249,4 +266,43 @@ pub async fn delete_session(
         .map_err(|e| format!("Network error: {e}"))?;
     check_response_error(resp).await?;
     Ok(())
+}
+
+pub async fn get_membership(
+    server_url: &str,
+    jwt: &str,
+    instance_token: Option<&str>,
+) -> Result<MembershipResponse, String> {
+    let url = api_url(server_url, "/activation-codes/membership");
+    let req = with_instance_token(HTTP_CLIENT.get(&url), instance_token);
+    let resp = req
+        .bearer_auth(jwt)
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {e}"))?;
+    let resp = check_response_error(resp).await?;
+    resp.json::<MembershipResponse>()
+        .await
+        .map_err(|e| format!("Parse error: {e}"))
+}
+
+pub async fn redeem_activation_code(
+    server_url: &str,
+    jwt: &str,
+    instance_token: Option<&str>,
+    code: &str,
+) -> Result<RedeemResponse, String> {
+    let url = api_url(server_url, "/activation-codes/redeem");
+    let body = serde_json::json!({ "code": code });
+    let req = with_instance_token(HTTP_CLIENT.post(&url), instance_token);
+    let resp = req
+        .bearer_auth(jwt)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {e}"))?;
+    let resp = check_response_error(resp).await?;
+    resp.json::<RedeemResponse>()
+        .await
+        .map_err(|e| format!("Parse error: {e}"))
 }

@@ -16,7 +16,9 @@ import {
   Divider,
   Spinner,
   Input,
+  type InputOnChangeData,
 } from "@fluentui/react-components";
+import type { ChangeEvent, KeyboardEvent } from "react";
 import {
   Person24Regular,
   ShieldLock24Regular,
@@ -34,6 +36,8 @@ import {
   Desktop24Regular,
   Keyboard24Regular,
   Save24Regular,
+  Trophy24Regular,
+  Key24Regular,
 } from "@fluentui/react-icons";
 import { useAppStore } from "../../store/appStore";
 import type { ThemePreference } from "../../types";
@@ -43,6 +47,8 @@ import {
   cmdDeleteSession,
   cmdTotpStopTicker,
   cmdSetSpotlightShortcut,
+  cmdGetMembership,
+  cmdRedeemActivationCode,
   type DeviceSession,
 } from "../../lib/tauri";
 import {
@@ -143,6 +149,12 @@ const useStyles = makeStyles({
     justifyContent: "center",
     padding: "16px",
   },
+  redeemRow: {
+    display: "flex",
+    gap: "8px",
+    marginTop: "12px",
+    padding: "0 16px 16px 16px"
+  },
 });
 
 export function SettingsPage() {
@@ -172,6 +184,14 @@ export function SettingsPage() {
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [biometricBusy, setBiometricBusy] = useState(false);
 
+  // Membership / Activation Code
+  const [membership, setMembership] = useState<{ active: boolean; expiresAt: number | null }>({ active: false, expiresAt: null });
+  const [membershipLoading, setMembershipLoading] = useState(false);
+  const [activationCode, setActivationCode] = useState("");
+  const [redeemBusy, setRedeemBusy] = useState(false);
+  const [redeemError, setRedeemError] = useState("");
+  const [redeemSuccess, setRedeemSuccess] = useState("");
+
   // Load device list when page mounts
   useEffect(() => {
     if (!jwt) return;
@@ -180,7 +200,40 @@ export function SettingsPage() {
       .then((resp) => setSessions(resp.sessions))
       .catch(console.error)
       .finally(() => setSessionsLoading(false));
+
+    fetchMembership();
   }, [jwt, serverUrl, instanceToken]);
+
+  const fetchMembership = async () => {
+    if (!jwt) return;
+    setMembershipLoading(true);
+    try {
+      const data = await cmdGetMembership(serverUrl, jwt, instanceToken ?? undefined);
+      setMembership({ active: data.active, expiresAt: data.expiresAt });
+    } catch (e) {
+      console.error("Failed to fetch membership:", e);
+    } finally {
+      setMembershipLoading(false);
+    }
+  };
+
+  const handleRedeemCode = async () => {
+    if (!activationCode.trim() || !jwt) return;
+    setRedeemBusy(true);
+    setRedeemError("");
+    setRedeemSuccess("");
+    try {
+      const data = await cmdRedeemActivationCode(serverUrl, jwt, instanceToken ?? undefined, activationCode);
+      setRedeemSuccess(`Success! Added ${data.membershipDaysAdded} days.`);
+      setActivationCode("");
+      fetchMembership();
+      setTimeout(() => setRedeemSuccess(""), 5000);
+    } catch (e: any) {
+      setRedeemError(String(e));
+    } finally {
+      setRedeemBusy(false);
+    }
+  };
 
   const handleLogout = async () => {
     setLogoutBusy(true);
@@ -282,6 +335,41 @@ export function SettingsPage() {
           <Divider />
           <div className={styles.row}>
             <div className={styles.rowLeft}>
+              <Trophy24Regular className={styles.rowIcon} />
+              <div className={styles.rowText}>
+                <Body1 className={styles.rowLabel}>Membership</Body1>
+                <Caption1 className={styles.rowDesc} style={{ color: membership.active ? tokens.colorPaletteGreenForeground1 : tokens.colorNeutralForeground3 }}>
+                  {membershipLoading ? "Loading..." : (membership.active ? `Active until ${new Date(membership.expiresAt! * 1000).toLocaleDateString()}` : "Inactive")}
+                </Caption1>
+              </div>
+            </div>
+          </div>
+          <div className={styles.redeemRow}>
+            <Input
+              placeholder="Enter activation code"
+              value={activationCode}
+              onChange={(_e: ChangeEvent<HTMLInputElement>, d: InputOnChangeData) => setActivationCode(d.value)}
+              contentBefore={<Key24Regular />}
+              style={{ flex: 1 }}
+            />
+            <Button
+              appearance="primary"
+              onClick={handleRedeemCode}
+              disabled={redeemBusy || !activationCode.trim()}
+            >
+              {redeemBusy ? <Spinner size="tiny" /> : "Redeem"}
+            </Button>
+          </div>
+          {(redeemError || redeemSuccess) && (
+            <div style={{ padding: "0 16px 16px 16px" }}>
+              <Caption1 style={{ color: redeemError ? tokens.colorPaletteRedForeground1 : tokens.colorPaletteGreenForeground1 }}>
+                {redeemError || redeemSuccess}
+              </Caption1>
+            </div>
+          )}
+          <Divider />
+          <div className={styles.row}>
+            <div className={styles.rowLeft}>
               <SignOut24Regular className={styles.rowIcon} />
               <div className={styles.rowText}>
                 <Body1 className={styles.rowLabel}>Sign out</Body1>
@@ -327,7 +415,7 @@ export function SettingsPage() {
                   setLiveModifiers("");
                   // Unregister the real global shortcut while recording to prevent it from firing.
                   // Register a harmless F24 placeholder so the command doesn't fail.
-                  cmdSetSpotlightShortcut(spotlightShortcut, "F24").catch(() => {});
+                  cmdSetSpotlightShortcut(spotlightShortcut, "F24").catch(() => { });
                 }}
                 onBlur={() => {
                   setIsRecordingShortcut(false);
@@ -335,7 +423,7 @@ export function SettingsPage() {
                   // Re-register the current shortcut when leaving recording mode
                   cmdSetSpotlightShortcut("F24", spotlightShortcut).catch(console.error);
                 }}
-                onKeyDown={(e) => {
+                onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
                   if (!isRecordingShortcut) return;
                   e.preventDefault();
                   e.stopPropagation();
@@ -375,7 +463,7 @@ export function SettingsPage() {
                   // Blurring the input after listening completes
                   (e.target as HTMLInputElement).blur();
                 }}
-                onKeyUp={(e) => {
+                onKeyUp={(e: KeyboardEvent<HTMLInputElement>) => {
                   if (!isRecordingShortcut) return;
                   // Update live modifiers when a modifier is released
                   const parts = [];
@@ -432,7 +520,7 @@ export function SettingsPage() {
                     ? "Light"
                     : "Dark"
               }
-              onOptionSelect={(_, data) =>
+              onOptionSelect={(_: any, data: any) =>
                 setTheme((data.optionValue as ThemePreference) ?? "system")
               }
               style={{ minWidth: "130px" }}

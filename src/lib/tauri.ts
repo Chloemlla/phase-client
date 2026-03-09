@@ -59,6 +59,19 @@ export interface RestoreResult {
   vaultVersion: number;
 }
 
+export interface MembershipResponse {
+  active: boolean;
+  expiresAt: number | null;
+  expiresAtIso: string | null;
+  remainingDays: number;
+}
+
+export interface RedeemResponse {
+  membershipExpiresAt: number;
+  membershipDaysAdded: number;
+  membershipExpiresAtIso: string;
+}
+
 export type UnlistenFn = () => void;
 
 // ── Command wrappers ───────────────────────────────────────────────────────
@@ -203,3 +216,18 @@ export const cmdSetSpotlightShortcut = (
   newShortcut: string
 ): Promise<void> =>
   invoke<void>("cmd_set_spotlight_shortcut", { oldShortcut, newShortcut });
+
+export const cmdGetMembership = (
+  serverUrl: string,
+  jwt: string,
+  instanceToken?: string
+): Promise<MembershipResponse> =>
+  invoke<MembershipResponse>("cmd_get_membership", { serverUrl, jwt, instanceToken });
+
+export const cmdRedeemActivationCode = (
+  serverUrl: string,
+  jwt: string,
+  instanceToken: string | undefined,
+  code: string
+): Promise<RedeemResponse> =>
+  invoke<RedeemResponse>("cmd_redeem_activation_code", { serverUrl, jwt, instanceToken, code });

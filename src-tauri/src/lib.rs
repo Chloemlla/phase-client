@@ -101,8 +101,6 @@ pub fn run() {
                         _ => {}
                     })
                     .build(app)?;
-            }
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -123,6 +121,8 @@ pub fn run() {
             commands::cmd_restore_session,
             commands::cmd_offline_unlock,
             commands::cmd_set_spotlight_shortcut,
+            commands::cmd_get_membership,
+            commands::cmd_redeem_activation_code,
         ]);
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

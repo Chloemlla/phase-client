@@ -512,9 +512,6 @@ pub fn cmd_set_spotlight_shortcut(
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
-            })
-            .map_err(|e| e.to_string())?;
-
         Ok(())
     }
 
@@ -523,4 +520,25 @@ pub fn cmd_set_spotlight_shortcut(
         let _ = (app, old_shortcut, new_shortcut);
         Err("Global shortcut is only supported on desktop".to_string())
     }
+}
+
+// ── Activation Codes / Membership ─────────────────────────────────────────
+
+#[tauri::command]
+pub async fn cmd_get_membership(
+    server_url: String,
+    jwt: String,
+    instance_token: Option<String>,
+) -> Result<api::MembershipResponse, String> {
+    api::get_membership(&server_url, &jwt, instance_token.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn cmd_redeem_activation_code(
+    server_url: String,
+    jwt: String,
+    instance_token: Option<String>,
+    code: String,
+) -> Result<api::RedeemResponse, String> {
+    api::redeem_activation_code(&server_url, &jwt, instance_token.as_deref(), &code).await
 }
