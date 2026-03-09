@@ -43,6 +43,33 @@ import type { Token } from "../../types";
 import { normalizeServerUrl } from "../../lib/url";
 import { QrScanner, type QrScanResult } from "./QrScanner";
 
+// === HIBP Check ===
+async function checkPwnedPassword(password: string): Promise<boolean> {
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).toUpperCase().join('');
+    const prefix = hashHex.substring(0, 5);
+    const suffix = hashHex.substring(5);
+
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+    if (!res.ok) return false;
+    const text = await res.text();
+    const lines = text.split('\n');
+    for (const line of lines) {
+      if (line.startsWith(suffix)) {
+        return true;
+      }
+    }
+  } catch (e) {
+    console.error("HIBP check failed", e);
+  }
+  return false;
+}
+// ==================
+
 type SetupView =
   | "home"
   | "cloud-login"
@@ -330,6 +357,15 @@ export function SetupPage() {
     if (!normalizedUrl || !regEmail.trim() || regPassword.length < 8) return;
     setBusy(true);
     setError("");
+
+    // Check Have I Been Pwned first
+    const isPwned = await checkPwnedPassword(regPassword);
+    if (isPwned) {
+      setError("警告：您输入的密码已在数据泄露事件中暴露。出于安全考虑，请使用其他密码。");
+      setBusy(false);
+      return;
+    }
+
     try {
       const result = await cmdCloudRegister(normalizedUrl, regEmail, regPassword);
       setServerUrl(normalizedUrl);

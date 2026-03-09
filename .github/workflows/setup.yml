@@ -1,0 +1,37 @@
+name: Setup Dependencies
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  install-dependencies:
+    runs-on: ubuntu-latest
+    name: Install and verify dependencies
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify TypeScript compilation
+        run: pnpm run build
+
+      - name: List installed packages
+        run: pnpm list --depth=0

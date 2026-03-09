@@ -57,6 +57,8 @@ import {
   hasBiometricCredential,
 } from "../../lib/biometric";
 import { isMobile } from "../../lib/platform";
+import { HardwareKeyManager } from "../security/HardwareKeyManager";
+import { PasswordBreachMonitor } from "../security/PasswordBreachMonitor";
 
 const useStyles = makeStyles({
   container: {
@@ -584,6 +586,20 @@ export function SettingsPage() {
             </Dropdown>
           </div>
         </Card>
+      </motion.div>
+
+      {/* Security Enhancements */}
+      <motion.div className={styles.section} variants={sectionVariants} transition={{ duration: 0.18 }}>
+        <div className={styles.sectionTitle}>
+          <ShieldLock24Regular />
+          <Body2>Security Enhancements</Body2>
+        </div>
+        <HardwareKeyManager
+          serverUrl={serverUrl}
+          jwt={jwt ?? ""}
+          instanceToken={instanceToken ?? undefined}
+        />
+        <PasswordBreachMonitor />
       </motion.div>
 
       {/* Data */}
