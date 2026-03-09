@@ -6,7 +6,7 @@
 !.github/
 !.github/**
 !scripts/
-!scripts/**
+!scripts/setup-android-signing.cmd
 !README.md
 !README.zh-Hans.md
 !index.html

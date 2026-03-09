@@ -3,13 +3,13 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 REM ============================================================
-REM  NexAI Android 签名配置脚本 (Windows CMD)
+REM  Phase Android 签名配置脚本 (Windows CMD)
 REM  生成 keystore 并自动配置 GitHub Secrets
 REM ============================================================
 
 echo.
 echo ========================================
-echo   NexAI Android 签名配置
+echo   Phase Android 签名配置
 echo ========================================
 echo.
 
@@ -165,11 +165,11 @@ echo [4/6] 配置签名参数...
 echo.
 
 REM --- 配置变量 ---
-set "KEYSTORE_FILE=nexai-release.jks"
-set "KEY_ALIAS=nexai"
+set "KEYSTORE_FILE=Phase-release.jks"
+set "KEY_ALIAS=Phase"
 set "STORE_PASSWORD="
 set "KEY_PASSWORD="
-set "DNAME=CN=NexAI, OU=Dev, O=NexAI, L=Unknown, ST=Unknown, C=US"
+set "DNAME=CN=Phase, OU=Dev, O=Phase, L=Unknown, ST=Unknown, C=US"
 
 REM --- 输入密码 ---
 echo 请输入 keystore 密码（至少 6 位）:

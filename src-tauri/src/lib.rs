@@ -101,6 +101,7 @@ pub fn run() {
                         _ => {}
                     })
                     .build(app)?;
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
