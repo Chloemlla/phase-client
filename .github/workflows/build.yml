@@ -129,6 +129,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Clean Android gen folder
+        run: rm -rf src-tauri/gen/android
+
       - name: Init Android project
         run: pnpm tauri android init
 

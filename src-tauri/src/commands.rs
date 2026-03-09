@@ -617,6 +617,9 @@ pub fn cmd_set_spotlight_shortcut(
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
+            })
+            .map_err(|e| e.to_string())?;
+
         Ok(())
     }
 
