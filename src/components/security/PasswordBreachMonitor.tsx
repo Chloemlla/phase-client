@@ -4,7 +4,6 @@ import {
   Button,
   Body1,
   Caption1,
-  Divider,
   Spinner,
   MessageBar,
   MessageBarBody,
@@ -67,11 +66,9 @@ const useStyles = makeStyles({
   },
   breachedBox: {
     backgroundColor: tokens.colorPaletteRedBackground2,
-    borderColor: tokens.colorPaletteRedBorder2,
   },
   safeBox: {
     backgroundColor: tokens.colorPaletteGreenBackground2,
-    borderColor: tokens.colorPaletteGreenBorder2,
   },
   resultIcon: {
     fontSize: "32px",
@@ -94,8 +91,8 @@ async function checkPasswordBreach(password: string): Promise<{ breached: boolea
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray
       .map((b) => b.toString(16).padStart(2, "0"))
-      .toUpperCase()
-      .join("");
+      .join("")
+      .toUpperCase();
     const prefix = hashHex.substring(0, 5);
     const suffix = hashHex.substring(5);
 

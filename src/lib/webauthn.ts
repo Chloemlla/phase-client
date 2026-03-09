@@ -1,5 +1,4 @@
 // WebAuthn / Hardware Key (YubiKey) Support
-import { invoke } from "@tauri-apps/api/core";
 
 export interface WebAuthnCredential {
   id: string;

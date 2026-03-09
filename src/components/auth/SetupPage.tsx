@@ -50,7 +50,7 @@ async function checkPwnedPassword(password: string): Promise<boolean> {
     const data = encoder.encode(password);
     const hashBuffer = await crypto.subtle.digest('SHA-1', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).toUpperCase().join('');
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     const prefix = hashHex.substring(0, 5);
     const suffix = hashHex.substring(5);
 
