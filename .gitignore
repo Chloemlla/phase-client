@@ -5,6 +5,10 @@
 !.gitignore
 !.github/
 !.github/**
+!scripts/
+!scripts/**
+!README.md
+!README.zh-Hans.md
 !index.html
 !package.json
 !pnpm-lock.yaml
