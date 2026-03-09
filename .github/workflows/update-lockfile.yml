@@ -35,10 +35,9 @@ jobs:
           git diff --exit-code pnpm-lock.yaml || echo "changed=true" >> $GITHUB_OUTPUT
 
       - name: Commit and push if changed
-        if: steps.git-check.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pnpm-lock.yaml
           git commit -m "chore: update pnpm-lock.yaml"
-          git push
+          git push -f
