@@ -46,13 +46,13 @@ pub fn run() {
                     builder = builder.transparent(true);
                 }
 
-                let spotlight = builder.build()?;
+                let _spotlight = builder.build()?;
 
                 // Apply Vibrancy to Spotlight window
                 #[cfg(target_os = "windows")]
                 {
-                    if apply_mica(&spotlight, None).is_err() {
-                        let _ = apply_acrylic(&spotlight, Some((18, 18, 18, 125)));
+                    if apply_mica(&_spotlight, None).is_err() {
+                        let _ = apply_acrylic(&_spotlight, Some((18, 18, 18, 125)));
                     }
                 }
 

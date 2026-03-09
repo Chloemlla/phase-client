@@ -338,3 +338,49 @@ pub async fn redeem_activation_code(
         .await
         .map_err(|e| format!("Parse error: {e}"))
 }
+
+/// Self-hosted setup: stores encrypted vault on server, returns JWT.
+pub async fn setup(
+    server_url: &str,
+    instance_token: &str,
+    encrypted_vault: &str,
+    device_name: &str,
+) -> Result<AuthResponse, String> {
+    let url = api_url(server_url, "/auth/setup");
+    let body = serde_json::json!({
+        "encryptedVault": encrypted_vault,
+        "deviceName": device_name,
+    });
+    let resp = with_instance_token(HTTP_CLIENT.post(&url), Some(instance_token))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {e}"))?;
+    let resp = check_response_error(resp).await?;
+    resp.json::<AuthResponse>()
+        .await
+        .map_err(|e| format!("Parse error: {e}"))
+}
+
+/// Self-hosted open: creates a new session, returns JWT.
+pub async fn open(
+    server_url: &str,
+    instance_token: &str,
+    device_name: &str,
+    device_id: Option<&str>,
+) -> Result<AuthResponse, String> {
+    let url = api_url(server_url, "/auth/open");
+    let body = serde_json::json!({
+        "deviceName": device_name,
+        "deviceId": device_id,
+    });
+    let resp = with_instance_token(HTTP_CLIENT.post(&url), Some(instance_token))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {e}"))?;
+    let resp = check_response_error(resp).await?;
+    resp.json::<AuthResponse>()
+        .await
+        .map_err(|e| format!("Parse error: {e}"))
+}

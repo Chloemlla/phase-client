@@ -131,7 +131,8 @@ pub async fn cmd_cloud_register(
     let encrypted_vault = crypto::encrypt_vault(empty_vault, &enc_key)?;
 
     let dev_name = device_name();
-    let auth_resp = api::register(&server_url, None, &email, &auth_hash, &salt, &encrypted_vault, &dev_name).await?;
+    let auth_hash_hex = hex::encode(auth_hash);
+    let auth_resp = api::register(&server_url, None, &email, &auth_hash_hex, &salt, &encrypted_vault, &dev_name).await?;
     let jwt = auth_resp.token.clone();
     let handle = store_session(enc_key);
 
@@ -182,7 +183,8 @@ pub async fn cmd_cloud_login(
     // 2. Derive key and auth_hash using salt
     let (enc_key, auth_hash) = crypto::derive_keys(&master_password, &salt)?;
 
-    let auth_resp = api::login(&server_url, None, &email, &auth_hash, &dev_name, device_id.as_deref()).await?;
+    let auth_hash_hex = hex::encode(auth_hash);
+    let auth_resp = api::login(&server_url, None, &email, &auth_hash_hex, &dev_name, device_id.as_deref()).await?;
     let jwt = auth_resp.token.clone();
 
     // Fetch and decrypt vault
